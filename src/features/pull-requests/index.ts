@@ -6,6 +6,7 @@ export * from './list-pull-requests';
 export * from './get-pull-request-comments';
 export * from './add-pull-request-comment';
 export * from './update-pull-request';
+export * from './update-pull-request-comment';
 export * from './get-pull-request-changes';
 export * from './get-pull-request-checks';
 export * from './update-pull-request-thread-status';
@@ -28,6 +29,7 @@ import {
   GetPullRequestCommentsSchema,
   AddPullRequestCommentSchema,
   UpdatePullRequestSchema,
+  UpdatePullRequestCommentSchema,
   GetPullRequestChangesSchema,
   GetPullRequestChecksSchema,
   getPullRequest,
@@ -36,6 +38,7 @@ import {
   getPullRequestComments,
   addPullRequestComment,
   updatePullRequest,
+  updatePullRequestComment,
   getPullRequestChanges,
   getPullRequestChecks,
   UpdatePullRequestThreadStatusSchema,
@@ -56,6 +59,7 @@ export const isPullRequestsRequest: RequestIdentifier = (
     'get_pull_request_comments',
     'add_pull_request_comment',
     'update_pull_request',
+    'update_pull_request_comment',
     'get_pull_request_changes',
     'get_pull_request_checks',
     'update_pull_request_thread_status',
@@ -168,6 +172,23 @@ export const handlePullRequestsRequest: RequestHandler = async (
         projectId: params.projectId ?? defaultProject,
       };
       const result = await updatePullRequest(fixedParams);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    }
+    case 'update_pull_request_comment': {
+      const params = UpdatePullRequestCommentSchema.parse(
+        request.params.arguments,
+      );
+      const result = await updatePullRequestComment(
+        connection,
+        params.projectId ?? defaultProject,
+        params.repositoryId,
+        params.pullRequestId,
+        params.threadId,
+        params.commentId,
+        params.content,
+      );
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       };

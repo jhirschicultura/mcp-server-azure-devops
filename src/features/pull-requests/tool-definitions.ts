@@ -7,6 +7,7 @@ import {
   GetPullRequestCommentsSchema,
   AddPullRequestCommentSchema,
   UpdatePullRequestSchema,
+  UpdatePullRequestCommentSchema,
   GetPullRequestChangesSchema,
   GetPullRequestChecksSchema,
   UpdatePullRequestThreadStatusSchema,
@@ -70,5 +71,11 @@ export const pullRequestsTools: ToolDefinition[] = [
     description:
       'Update the status of a comment thread in a pull request (repositoryId optional; derived from pullRequestId when omitted)',
     inputSchema: zodToJsonSchema(UpdatePullRequestThreadStatusSchema),
+  },
+  {
+    name: 'update_pull_request_comment',
+    description:
+      'Update an existing comment on a pull request thread. Use this to modify a previously posted comment, such as updating an "in progress" status with the final review results.',
+    inputSchema: zodToJsonSchema(UpdatePullRequestCommentSchema),
   },
 ];
