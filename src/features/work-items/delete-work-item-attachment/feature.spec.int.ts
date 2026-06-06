@@ -16,20 +16,24 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-describe('deleteWorkItemAttachment integration', () => {
-  let connection: WebApi | null = null;
-  let createdWorkItemId: number | null = null;
-  let uploadedAttachmentId: string | null = null;
-  let testFilePath: string | null = null;
+const shouldSkip = shouldSkipIntegrationTest();
+const describeOrSkip = shouldSkip ? describe.skip : describe;
+
+describeOrSkip('deleteWorkItemAttachment integration', () => {
+  let connection: WebApi;
+  let createdWorkItemId: number;
+  let uploadedAttachmentId: string;
+  let testFilePath: string;
 
   beforeAll(async () => {
     // Get a real connection using environment variables
-    connection = await getTestConnection();
-
-    // Skip setup if integration tests should be skipped
-    if (shouldSkipIntegrationTest() || !connection) {
-      return;
+    const testConnection = await getTestConnection();
+    if (!testConnection) {
+      throw new Error(
+        'Connection should be available when integration tests are enabled',
+      );
     }
+    connection = testConnection;
 
     // Create a work item to be used by the attachment tests
     const projectName =
@@ -41,20 +45,16 @@ describe('deleteWorkItemAttachment integration', () => {
       description: 'Work item for delete attachment integration tests',
     };
 
-    try {
-      const workItem = await createWorkItem(
-        connection,
-        projectName,
-        'Task',
-        createOptions,
-      );
-      if (workItem && workItem.id !== undefined) {
-        createdWorkItemId = workItem.id;
-      }
-    } catch (error) {
-      console.error('Failed to create work item for delete tests:', error);
-      return;
+    const workItem = await createWorkItem(
+      connection,
+      projectName,
+      'Task',
+      createOptions,
+    );
+    if (!workItem?.id) {
+      throw new Error('Failed to create work item for delete tests');
     }
+    createdWorkItemId = workItem.id;
 
     // Create a temporary test file and upload it
     const tempDir = os.tmpdir();
@@ -70,25 +70,22 @@ describe('deleteWorkItemAttachment integration', () => {
       fileName: 'test-delete-file.txt',
     };
 
-    try {
-      const updatedWorkItem = await createWorkItemAttachment(
-        connection,
-        createdWorkItemId!,
-        uploadOptions,
-      );
+    const updatedWorkItem = await createWorkItemAttachment(
+      connection,
+      createdWorkItemId,
+      uploadOptions,
+    );
 
-      // Find the attachment ID from the relations
-      const attachmentRelation = updatedWorkItem.relations?.find(
-        (r) => r.rel === 'AttachedFile',
-      );
-      if (attachmentRelation && attachmentRelation.url) {
-        // Extract attachment ID from URL (last segment)
-        const urlParts = attachmentRelation.url.split('/');
-        uploadedAttachmentId = urlParts[urlParts.length - 1];
-      }
-    } catch (error) {
-      console.error('Failed to upload attachment for delete tests:', error);
+    // Find the attachment ID from the relations
+    const attachmentRelation = updatedWorkItem.relations?.find(
+      (r) => r.rel === 'AttachedFile',
+    );
+    if (!attachmentRelation?.url) {
+      throw new Error('Failed to upload attachment for delete tests');
     }
+    // Extract attachment ID from URL (last segment)
+    const urlParts = attachmentRelation.url.split('/');
+    uploadedAttachmentId = urlParts[urlParts.length - 1];
   });
 
   afterAll(() => {
@@ -99,16 +96,6 @@ describe('deleteWorkItemAttachment integration', () => {
   });
 
   test('should delete an attachment from a work item', async () => {
-    // Skip if no connection is available or prerequisites not met
-    if (
-      shouldSkipIntegrationTest() ||
-      !connection ||
-      !createdWorkItemId ||
-      !uploadedAttachmentId
-    ) {
-      return;
-    }
-
     const options: DeleteWorkItemAttachmentOptions = {
       workItemId: createdWorkItemId,
       attachmentId: uploadedAttachmentId,
@@ -128,17 +115,12 @@ describe('deleteWorkItemAttachment integration', () => {
       'relations',
     );
     const attachmentRelation = updatedWorkItem.relations?.find(
-      (r) => r.rel === 'AttachedFile' && r.url?.includes(uploadedAttachmentId!),
+      (r) => r.rel === 'AttachedFile' && r.url?.includes(uploadedAttachmentId),
     );
     expect(attachmentRelation).toBeUndefined();
   });
 
   test('should throw error when attachment does not exist on work item', async () => {
-    // Skip if no connection is available or if work item wasn't created
-    if (shouldSkipIntegrationTest() || !connection || !createdWorkItemId) {
-      return;
-    }
-
     const options: DeleteWorkItemAttachmentOptions = {
       workItemId: createdWorkItemId,
       attachmentId: '00000000-0000-0000-0000-000000000000', // Non-existent GUID

@@ -6,6 +6,7 @@ import {
   UpdateWorkItemSchema,
   ManageWorkItemLinkSchema,
   GetWorkItemSchema,
+  ListWorkItemAttachmentsSchema,
   CreateWorkItemAttachmentSchema,
   GetWorkItemAttachmentSchema,
   DeleteWorkItemAttachmentSchema,
@@ -43,19 +44,25 @@ export const workItemsTools: ToolDefinition[] = [
   {
     name: 'create_work_item_attachment',
     description:
-      'Upload a file and attach it to a work item. The file is read from the local filesystem, uploaded to Azure DevOps, and linked to the specified work item.',
+      'Upload a file and attach it to a work item. Provide the file as a local filesystem path (filePath) or as base64-encoded content (content + fileName). The file is uploaded to Azure DevOps and linked to the specified work item.',
     inputSchema: zodToJsonSchema(CreateWorkItemAttachmentSchema),
   },
   {
     name: 'get_work_item_attachment',
     description:
-      'Download an attachment from Azure DevOps and save it to the local filesystem. The attachment ID can be obtained from the work item relations.',
+      'Download an attachment from Azure DevOps. If outputPath is provided, the file is saved to the local filesystem. Otherwise the content is returned inline: images are returned as viewable image content (useful for screenshots on bugs), text files as text, and other types as base64. Use list_work_item_attachments to find attachment IDs.',
     inputSchema: zodToJsonSchema(GetWorkItemAttachmentSchema),
   },
   {
     name: 'delete_work_item_attachment',
     description:
-      'Delete an attachment from a work item. The attachment ID can be obtained from the work item relations.',
+      'Delete an attachment from a work item. Use list_work_item_attachments to find attachment IDs.',
     inputSchema: zodToJsonSchema(DeleteWorkItemAttachmentSchema),
+  },
+  {
+    name: 'list_work_item_attachments',
+    description:
+      'List the attachments on a work item, including each attachment ID, file name, size, and upload date.',
+    inputSchema: zodToJsonSchema(ListWorkItemAttachmentsSchema),
   },
 ];

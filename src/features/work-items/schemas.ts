@@ -151,24 +151,40 @@ export const ManageWorkItemLinkSchema = z.object({
 /**
  * Schema for creating an attachment on a work item
  */
-export const CreateWorkItemAttachmentSchema = z.object({
-  workItemId: z
-    .number()
-    .describe('The ID of the work item to attach the file to'),
-  filePath: z
-    .string()
-    .describe('The absolute path to the file to upload as an attachment'),
-  fileName: z
-    .string()
-    .optional()
-    .describe(
-      'The name to use for the attachment. If not provided, the name will be extracted from the file path.',
-    ),
-  comment: z
-    .string()
-    .optional()
-    .describe('Optional comment for the attachment'),
-});
+export const CreateWorkItemAttachmentSchema = z
+  .object({
+    workItemId: z
+      .number()
+      .describe('The ID of the work item to attach the file to'),
+    filePath: z
+      .string()
+      .optional()
+      .describe(
+        'The absolute path to the file to upload as an attachment. Provide either filePath or content, not both.',
+      ),
+    content: z
+      .string()
+      .optional()
+      .describe(
+        'Base64-encoded file content to upload as an attachment. Use for generated content that is not on disk. Provide either filePath or content, not both. Requires fileName.',
+      ),
+    fileName: z
+      .string()
+      .optional()
+      .describe(
+        'The name to use for the attachment. Required when content is provided; otherwise extracted from the file path.',
+      ),
+    comment: z
+      .string()
+      .optional()
+      .describe('Optional comment for the attachment'),
+  })
+  .refine((data) => Boolean(data.filePath) !== Boolean(data.content), {
+    message: 'Exactly one of filePath or content must be provided',
+  })
+  .refine((data) => !data.content || Boolean(data.fileName), {
+    message: 'fileName is required when content is provided',
+  });
 
 /**
  * Schema for getting an attachment from a work item
@@ -179,9 +195,27 @@ export const GetWorkItemAttachmentSchema = z.object({
     .describe(
       'The ID (GUID) of the attachment to download. Can be obtained from the work item relations.',
     ),
+  fileName: z
+    .string()
+    .optional()
+    .describe(
+      'The file name of the attachment (e.g. screenshot.png). Used to detect the content type for inline display and to name saved files.',
+    ),
   outputPath: z
     .string()
-    .describe('The absolute path where the attachment will be saved'),
+    .optional()
+    .describe(
+      'The absolute path where the attachment will be saved. If omitted, images and text are returned inline (images as viewable content) and other binaries as base64.',
+    ),
+});
+
+/**
+ * Schema for listing attachments on a work item
+ */
+export const ListWorkItemAttachmentsSchema = z.object({
+  workItemId: z
+    .number()
+    .describe('The ID of the work item to list attachments for'),
 });
 
 /**

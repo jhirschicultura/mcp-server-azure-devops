@@ -7,7 +7,17 @@ import { AzureDevOpsError } from '../../../shared/errors';
 import { CreateWorkItemAttachmentOptions, WorkItem } from '../types';
 
 /**
+ * Maximum attachment size for a simple (non-chunked) upload.
+ * Azure DevOps rejects larger simple uploads; on-premises servers may
+ * enforce a smaller, administrator-configured limit.
+ */
+export const MAX_ATTACHMENT_SIZE_BYTES = 130 * 1024 * 1024; // 130 MB
+
+/**
  * Create an attachment on a work item
+ *
+ * The file content is provided either as a path on the local filesystem
+ * (`filePath`) or as base64-encoded content (`content` + `fileName`).
  *
  * @param connection The Azure DevOps WebApi connection
  * @param workItemId The ID of the work item to attach the file to
@@ -21,23 +31,44 @@ export async function createWorkItemAttachment(
 ): Promise<WorkItem> {
   try {
     // Validate required parameters
-    if (!options.filePath) {
-      throw new Error('File path is required');
+    if (!options.filePath && !options.content) {
+      throw new Error('Either filePath or content is required');
     }
 
-    // Check if file exists
-    if (!fs.existsSync(options.filePath)) {
-      throw new Error(`File does not exist: ${options.filePath}`);
+    if (options.filePath && options.content) {
+      throw new Error('Provide either filePath or content, not both');
+    }
+
+    let fileBuffer: Buffer;
+    let fileName: string;
+
+    if (options.filePath) {
+      // Check if file exists
+      if (!fs.existsSync(options.filePath)) {
+        throw new Error(`File does not exist: ${options.filePath}`);
+      }
+
+      fileBuffer = fs.readFileSync(options.filePath);
+      fileName = options.fileName || path.basename(options.filePath);
+    } else {
+      if (!options.fileName) {
+        throw new Error('fileName is required when content is provided');
+      }
+
+      fileBuffer = Buffer.from(options.content as string, 'base64');
+      fileName = options.fileName;
+    }
+
+    if (fileBuffer.length > MAX_ATTACHMENT_SIZE_BYTES) {
+      throw new Error(
+        `Attachment is too large (${fileBuffer.length} bytes). Maximum supported size is ${MAX_ATTACHMENT_SIZE_BYTES} bytes. Note: your Azure DevOps server may enforce a smaller limit.`,
+      );
     }
 
     const witApi = await connection.getWorkItemTrackingApi();
 
-    // Read the file content and convert to a readable stream
-    const fileBuffer = fs.readFileSync(options.filePath);
+    // Convert the file content to a readable stream
     const fileStream = Readable.from(fileBuffer);
-
-    // Determine the file name
-    const fileName = options.fileName || path.basename(options.filePath);
 
     // Upload the attachment
     // Signature: createAttachment(customHeaders, contentStream, fileName, uploadType, project, areaPath)

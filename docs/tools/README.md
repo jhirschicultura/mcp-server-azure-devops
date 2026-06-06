@@ -48,6 +48,7 @@ This directory contains documentation for all tools available in the Azure DevOp
 - [`create_work_item_attachment`](https://github.com/tiberriver256/mcp-server-azure-devops/blob/main/docs/tools/work-items.md#create_work_item_attachment) - Upload and attach a file to a work item
 - [`get_work_item_attachment`](https://github.com/tiberriver256/mcp-server-azure-devops/blob/main/docs/tools/work-items.md#get_work_item_attachment) - Download an attachment from a work item
 - [`delete_work_item_attachment`](https://github.com/tiberriver256/mcp-server-azure-devops/blob/main/docs/tools/work-items.md#delete_work_item_attachment) - Delete an attachment from a work item
+- [`list_work_item_attachments`](https://github.com/tiberriver256/mcp-server-azure-devops/blob/main/docs/tools/work-items.md#list_work_item_attachments) - List the attachments on a work item
 
 ### Pipeline Tools
 

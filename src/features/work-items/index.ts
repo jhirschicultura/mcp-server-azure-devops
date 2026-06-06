@@ -11,12 +11,16 @@ export * from './manage-work-item-link';
 export * from './create-work-item-attachment';
 export * from './get-work-item-attachment';
 export * from './delete-work-item-attachment';
+export * from './list-work-item-attachments';
 
 // Export tool definitions
 export * from './tool-definitions';
 
 // New exports for request handling
-import { CallToolRequest } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequest,
+  CallToolResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import { WebApi } from 'azure-devops-node-api';
 import {
   RequestIdentifier,
@@ -32,6 +36,7 @@ import {
   CreateWorkItemAttachmentSchema,
   GetWorkItemAttachmentSchema,
   DeleteWorkItemAttachmentSchema,
+  ListWorkItemAttachmentsSchema,
   listWorkItems,
   getWorkItem,
   createWorkItem,
@@ -40,6 +45,7 @@ import {
   createWorkItemAttachment,
   getWorkItemAttachment,
   deleteWorkItemAttachment,
+  listWorkItemAttachments,
 } from './';
 
 // Define the response type based on observed usage
@@ -63,6 +69,7 @@ export const isWorkItemsRequest: RequestIdentifier = (
     'create_work_item_attachment',
     'get_work_item_attachment',
     'delete_work_item_attachment',
+    'list_work_item_attachments',
   ].includes(toolName);
 };
 
@@ -72,7 +79,7 @@ export const isWorkItemsRequest: RequestIdentifier = (
 export const handleWorkItemsRequest: RequestHandler = async (
   connection: WebApi,
   request: CallToolRequest,
-): Promise<CallToolResponse> => {
+): Promise<CallToolResponse | CallToolResult> => {
   switch (request.params.name) {
     case 'get_work_item': {
       const args = GetWorkItemSchema.parse(request.params.arguments);
@@ -163,6 +170,7 @@ export const handleWorkItemsRequest: RequestHandler = async (
         args.workItemId,
         {
           filePath: args.filePath,
+          content: args.content,
           fileName: args.fileName,
           comment: args.comment,
         },
@@ -175,7 +183,65 @@ export const handleWorkItemsRequest: RequestHandler = async (
       const args = GetWorkItemAttachmentSchema.parse(request.params.arguments);
       const result = await getWorkItemAttachment(connection, {
         attachmentId: args.attachmentId,
+        fileName: args.fileName,
         outputPath: args.outputPath,
+      });
+
+      switch (result.kind) {
+        case 'image':
+          // Return the image as viewable MCP image content
+          return {
+            content: [
+              {
+                type: 'image',
+                data: result.base64,
+                mimeType: result.mimeType,
+              },
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    fileName: result.fileName,
+                    mimeType: result.mimeType,
+                    size: result.size,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        case 'text':
+          return {
+            content: [{ type: 'text', text: result.text }],
+          };
+        case 'binary':
+          // Return binary content as an embedded base64 resource
+          return {
+            content: [
+              {
+                type: 'resource',
+                resource: {
+                  uri: `azure-devops://attachments/${args.attachmentId}`,
+                  blob: result.base64,
+                  mimeType: result.mimeType,
+                },
+              },
+            ],
+          };
+        default:
+          // Saved to disk
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          };
+      }
+    }
+    case 'list_work_item_attachments': {
+      const args = ListWorkItemAttachmentsSchema.parse(
+        request.params.arguments,
+      );
+      const result = await listWorkItemAttachments(connection, {
+        workItemId: args.workItemId,
       });
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],

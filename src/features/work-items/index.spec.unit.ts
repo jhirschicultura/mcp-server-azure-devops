@@ -169,6 +169,7 @@ describe('Work Items Request Handlers', () => {
         .spyOn(workItemModule, 'createWorkItemAttachment')
         .mockResolvedValue({ id: 123, relations: [] });
       jest.spyOn(workItemModule, 'getWorkItemAttachment').mockResolvedValue({
+        kind: 'file',
         filePath: '/path/to/output.txt',
         fileName: 'output.txt',
         size: 1024,
@@ -331,10 +332,98 @@ describe('Work Items Request Handlers', () => {
             type: 'text',
             text: JSON.stringify(
               {
+                kind: 'file',
                 filePath: '/path/to/output.txt',
                 fileName: 'output.txt',
                 size: 1024,
               },
+              null,
+              2,
+            ),
+          },
+        ],
+      });
+    });
+
+    it('should return image attachments as viewable image content', async () => {
+      jest.spyOn(workItemModule, 'getWorkItemAttachment').mockResolvedValue({
+        kind: 'image',
+        base64: 'aW1hZ2VkYXRh',
+        mimeType: 'image/png',
+        fileName: 'screenshot.png',
+        size: 9,
+      });
+
+      const request = createCallToolRequest('get_work_item_attachment', {
+        attachmentId: 'abc-123-def-456',
+        fileName: 'screenshot.png',
+      });
+
+      const result = await handleWorkItemsRequest(mockConnection, request);
+
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'image',
+            data: 'aW1hZ2VkYXRh',
+            mimeType: 'image/png',
+          },
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                fileName: 'screenshot.png',
+                mimeType: 'image/png',
+                size: 9,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      });
+    });
+
+    it('should handle list_work_item_attachments requests', async () => {
+      // Use a mocked connection and let the real feature run
+      const attachmentUrl =
+        'https://dev.azure.com/org/proj/_apis/wit/attachments/abc-123-def-456';
+      const connectionWithAttachment: any = {
+        getWorkItemTrackingApi: jest.fn().mockResolvedValue({
+          getWorkItem: jest.fn().mockResolvedValue({
+            id: 123,
+            relations: [
+              {
+                rel: 'AttachedFile',
+                url: attachmentUrl,
+                attributes: { name: 'screenshot.png' },
+              },
+            ],
+          }),
+        }),
+      };
+
+      const request = createCallToolRequest('list_work_item_attachments', {
+        workItemId: 123,
+      });
+
+      const result = await handleWorkItemsRequest(
+        connectionWithAttachment,
+        request,
+      );
+
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              [
+                {
+                  attachmentId: 'abc-123-def-456',
+                  fileName: 'screenshot.png',
+                  url: attachmentUrl,
+                },
+              ],
               null,
               2,
             ),

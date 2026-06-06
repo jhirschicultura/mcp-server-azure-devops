@@ -45,9 +45,13 @@ export interface UpdateWorkItemOptions {
 
 /**
  * Options for creating an attachment on a work item
+ *
+ * Exactly one of `filePath` or `content` must be provided.
+ * When `content` is used, `fileName` is required.
  */
 export interface CreateWorkItemAttachmentOptions {
-  filePath: string;
+  filePath?: string;
+  content?: string;
   fileName?: string;
   comment?: string;
 }
@@ -57,16 +61,65 @@ export interface CreateWorkItemAttachmentOptions {
  */
 export interface GetWorkItemAttachmentOptions {
   attachmentId: string;
-  outputPath: string;
+  fileName?: string;
+  outputPath?: string;
 }
 
 /**
  * Result of getting an attachment
+ *
+ * Discriminated by `kind`:
+ * - `file`: the attachment was saved to `filePath` on disk
+ * - `image`: raster image content returned inline as base64
+ * - `text`: text content returned inline
+ * - `binary`: binary content returned inline as base64
  */
-export interface GetWorkItemAttachmentResult {
-  filePath: string;
+export type GetWorkItemAttachmentResult =
+  | {
+      kind: 'file';
+      filePath: string;
+      fileName: string;
+      size: number;
+    }
+  | {
+      kind: 'image';
+      base64: string;
+      mimeType: string;
+      fileName: string;
+      size: number;
+    }
+  | {
+      kind: 'text';
+      text: string;
+      mimeType: string;
+      fileName: string;
+      size: number;
+    }
+  | {
+      kind: 'binary';
+      base64: string;
+      mimeType: string;
+      fileName: string;
+      size: number;
+    };
+
+/**
+ * A single attachment on a work item
+ */
+export interface WorkItemAttachmentInfo {
+  attachmentId: string;
   fileName: string;
-  size: number;
+  url: string;
+  comment?: string;
+  resourceSize?: number;
+  authorizedDate?: string;
+}
+
+/**
+ * Options for listing attachments on a work item
+ */
+export interface ListWorkItemAttachmentsOptions {
+  workItemId: number;
 }
 
 /**

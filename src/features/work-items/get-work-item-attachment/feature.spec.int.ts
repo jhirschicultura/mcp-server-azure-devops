@@ -15,23 +15,27 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-describe('getWorkItemAttachment integration', () => {
-  let connection: WebApi | null = null;
-  let createdWorkItemId: number | null = null;
-  let uploadedAttachmentId: string | null = null;
-  let testFilePath: string | null = null;
-  let downloadPath: string | null = null;
+const shouldSkip = shouldSkipIntegrationTest();
+const describeOrSkip = shouldSkip ? describe.skip : describe;
+
+describeOrSkip('getWorkItemAttachment integration', () => {
+  let connection: WebApi;
+  let createdWorkItemId: number;
+  let uploadedAttachmentId: string;
+  let testFilePath: string;
+  let downloadPath: string;
   const testFileContent =
     'This is test content for download integration tests.';
 
   beforeAll(async () => {
     // Get a real connection using environment variables
-    connection = await getTestConnection();
-
-    // Skip setup if integration tests should be skipped
-    if (shouldSkipIntegrationTest() || !connection) {
-      return;
+    const testConnection = await getTestConnection();
+    if (!testConnection) {
+      throw new Error(
+        'Connection should be available when integration tests are enabled',
+      );
     }
+    connection = testConnection;
 
     // Create a work item to be used by the attachment tests
     const projectName =
@@ -43,20 +47,16 @@ describe('getWorkItemAttachment integration', () => {
       description: 'Work item for download attachment integration tests',
     };
 
-    try {
-      const workItem = await createWorkItem(
-        connection,
-        projectName,
-        'Task',
-        createOptions,
-      );
-      if (workItem && workItem.id !== undefined) {
-        createdWorkItemId = workItem.id;
-      }
-    } catch (error) {
-      console.error('Failed to create work item for download tests:', error);
-      return;
+    const workItem = await createWorkItem(
+      connection,
+      projectName,
+      'Task',
+      createOptions,
+    );
+    if (!workItem?.id) {
+      throw new Error('Failed to create work item for download tests');
     }
+    createdWorkItemId = workItem.id;
 
     // Create a temporary test file and upload it
     const tempDir = os.tmpdir();
@@ -69,25 +69,22 @@ describe('getWorkItemAttachment integration', () => {
       fileName: 'test-download-file.txt',
     };
 
-    try {
-      const updatedWorkItem = await createWorkItemAttachment(
-        connection,
-        createdWorkItemId!,
-        uploadOptions,
-      );
+    const updatedWorkItem = await createWorkItemAttachment(
+      connection,
+      createdWorkItemId,
+      uploadOptions,
+    );
 
-      // Find the attachment ID from the relations
-      const attachmentRelation = updatedWorkItem.relations?.find(
-        (r) => r.rel === 'AttachedFile',
-      );
-      if (attachmentRelation && attachmentRelation.url) {
-        // Extract attachment ID from URL (last segment)
-        const urlParts = attachmentRelation.url.split('/');
-        uploadedAttachmentId = urlParts[urlParts.length - 1];
-      }
-    } catch (error) {
-      console.error('Failed to upload attachment for download tests:', error);
+    // Find the attachment ID from the relations
+    const attachmentRelation = updatedWorkItem.relations?.find(
+      (r) => r.rel === 'AttachedFile',
+    );
+    if (!attachmentRelation?.url) {
+      throw new Error('Failed to upload attachment for download tests');
     }
+    // Extract attachment ID from URL (last segment)
+    const urlParts = attachmentRelation.url.split('/');
+    uploadedAttachmentId = urlParts[urlParts.length - 1];
 
     // Set up download path
     downloadPath = path.join(tempDir, `downloaded-${Date.now()}.txt`);
@@ -104,17 +101,6 @@ describe('getWorkItemAttachment integration', () => {
   });
 
   test('should download an attachment from Azure DevOps', async () => {
-    // Skip if no connection is available or prerequisites not met
-    if (
-      shouldSkipIntegrationTest() ||
-      !connection ||
-      !createdWorkItemId ||
-      !uploadedAttachmentId ||
-      !downloadPath
-    ) {
-      return;
-    }
-
     const options: GetWorkItemAttachmentOptions = {
       attachmentId: uploadedAttachmentId,
       outputPath: downloadPath,
@@ -125,6 +111,10 @@ describe('getWorkItemAttachment integration', () => {
 
     // Assert on the actual response
     expect(result).toBeDefined();
+    expect(result.kind).toBe('file');
+    if (result.kind !== 'file') {
+      throw new Error('Expected file result');
+    }
     expect(result.filePath).toBe(downloadPath);
     expect(result.size).toBeGreaterThan(0);
 
@@ -136,12 +126,25 @@ describe('getWorkItemAttachment integration', () => {
     expect(downloadedContent).toBe(testFileContent);
   });
 
-  test('should throw error when attachment does not exist', async () => {
-    // Skip if no connection is available
-    if (shouldSkipIntegrationTest() || !connection) {
-      return;
-    }
+  test('should return text content inline when outputPath is omitted', async () => {
+    const options: GetWorkItemAttachmentOptions = {
+      attachmentId: uploadedAttachmentId,
+      fileName: 'test-download-file.txt',
+    };
 
+    // Act - make an actual API call to Azure DevOps
+    const result = await getWorkItemAttachment(connection, options);
+
+    // Assert - text attachments come back inline
+    expect(result.kind).toBe('text');
+    if (result.kind !== 'text') {
+      throw new Error('Expected text result');
+    }
+    expect(result.text).toBe(testFileContent);
+    expect(result.mimeType).toBe('text/plain');
+  });
+
+  test('should throw error when attachment does not exist', async () => {
     const tempDir = os.tmpdir();
     const nonExistentDownloadPath = path.join(
       tempDir,
