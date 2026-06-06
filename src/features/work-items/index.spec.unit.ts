@@ -384,6 +384,41 @@ describe('Work Items Request Handlers', () => {
       });
     });
 
+    it('should return text attachments with a mimeType metadata block', async () => {
+      jest.spyOn(workItemModule, 'getWorkItemAttachment').mockResolvedValue({
+        kind: 'text',
+        text: '<svg></svg>',
+        mimeType: 'image/svg+xml',
+        fileName: 'diagram.svg',
+        size: 11,
+      });
+
+      const request = createCallToolRequest('get_work_item_attachment', {
+        attachmentId: 'abc-123-def-456',
+        fileName: 'diagram.svg',
+      });
+
+      const result = await handleWorkItemsRequest(mockConnection, request);
+
+      expect(result).toEqual({
+        content: [
+          { type: 'text', text: '<svg></svg>' },
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                fileName: 'diagram.svg',
+                mimeType: 'image/svg+xml',
+                size: 11,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      });
+    });
+
     it('should handle list_work_item_attachments requests', async () => {
       // Use a mocked connection and let the real feature run
       const attachmentUrl =

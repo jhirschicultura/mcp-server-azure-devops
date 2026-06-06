@@ -1,21 +1,11 @@
 import { WebApi } from 'azure-devops-node-api';
 import { WorkItemExpand } from 'azure-devops-node-api/interfaces/WorkItemTrackingInterfaces';
 import { AzureDevOpsError } from '../../../shared/errors';
+import { parseAttachmentId } from '../../../utils/attachment-url';
 import {
   ListWorkItemAttachmentsOptions,
   WorkItemAttachmentInfo,
 } from '../types';
-
-/**
- * Extract the attachment ID (GUID) from an attachment URL
- *
- * Attachment URLs have the form:
- * {server}/{collection}/{project}/_apis/wit/attachments/{guid}
- */
-function extractAttachmentId(url: string): string {
-  const match = url.match(/attachments\/([0-9a-f-]+)/i);
-  return match ? match[1] : url;
-}
 
 /**
  * List the attachments on a work item
@@ -50,10 +40,11 @@ export async function listWorkItemAttachments(
       .map((relation) => {
         const attributes = relation.attributes || {};
         const url = relation.url as string;
+        const attachmentId = parseAttachmentId(url);
 
         return {
-          attachmentId: extractAttachmentId(url),
-          fileName: attributes.name || extractAttachmentId(url),
+          attachmentId,
+          fileName: attributes.name || attachmentId,
           url,
           ...(attributes.comment ? { comment: attributes.comment } : {}),
           ...(attributes.resourceSize !== undefined

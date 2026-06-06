@@ -204,6 +204,31 @@ describe('getFileContent', () => {
     });
   });
 
+  it('should surface a VSS error envelope returned with a 200 status as not-found', async () => {
+    // On-prem servers can return a JSON error envelope at HTTP 200 instead
+    // of a proper error; it must not be returned as file content.
+    const envelope = JSON.stringify({
+      $id: '1',
+      message: 'TF401174: unable to access',
+      typeName:
+        'Microsoft.TeamFoundation.Git.Server.GitItemNotFoundException, ...',
+    });
+    // Single item so it is treated as a file, then content is the envelope
+    mockGitApi.getItems = jest.fn().mockResolvedValue([mockItem]);
+    mockGitApi.getItemContent = jest
+      .fn()
+      .mockResolvedValue(createReadableStream(envelope));
+
+    await expect(
+      getFileContent(
+        mockConnection,
+        mockProjectId,
+        mockRepositoryId,
+        mockFilePath,
+      ),
+    ).rejects.toThrow(AzureDevOpsResourceNotFoundError);
+  });
+
   it('should handle a directory path with trailing slash', async () => {
     const dirPath = '/path/to/dir/';
     const mockDirectoryItems = [

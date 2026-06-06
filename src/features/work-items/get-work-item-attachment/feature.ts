@@ -4,6 +4,10 @@ import * as path from 'path';
 import { AzureDevOpsError } from '../../../shared/errors';
 import { resolveAttachmentPath } from '../../../utils/attachment-paths';
 import {
+  detectVssErrorEnvelope,
+  MAX_VSS_ENVELOPE_BYTES,
+} from '../../../utils/vss-error-envelope';
+import {
   GetWorkItemAttachmentOptions,
   GetWorkItemAttachmentResult,
 } from '../types';
@@ -72,48 +76,32 @@ function getMimeType(fileName: string): {
 }
 
 /**
- * Read a stream fully into a buffer
+ * Read a stream into a buffer, enforcing an optional byte cap *during* the
+ * read so oversized content is never fully buffered into memory.
+ *
+ * @param stream The readable stream
+ * @param maxBytes Optional cap; the stream is destroyed and an error thrown
+ *   as soon as the accumulated size exceeds it
  */
-async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+async function streamToBuffer(
+  stream: NodeJS.ReadableStream,
+  maxBytes?: number,
+): Promise<Buffer> {
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (maxBytes !== undefined && total > maxBytes) {
+      // Stop pulling data and release the source
+      (stream as NodeJS.ReadableStream & { destroy?: () => void }).destroy?.();
+      throw new Error(
+        `Attachment is too large to return inline (exceeds ${maxBytes} bytes). Provide outputPath to save it to disk instead.`,
+      );
+    }
+    chunks.push(buf);
   }
   return Buffer.concat(chunks);
-}
-
-/**
- * Detect a VSS error envelope returned with a 200 status.
- *
- * Some servers (notably on-premises Azure DevOps Server) respond to
- * requests for missing attachments with a JSON error body instead of an
- * HTTP error, e.g.:
- * `{"$id":"1","message":"...","typeName":"...Exception...","eventId":3000}`
- *
- * @returns The error message if the buffer is an error envelope, else null
- */
-function detectVssErrorEnvelope(buffer: Buffer): string | null {
-  if (buffer.length === 0 || buffer.length > 4096 || buffer[0] !== 0x7b) {
-    // Not a small JSON object ('{' = 0x7b)
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(buffer.toString('utf8'));
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      typeof parsed.message === 'string' &&
-      typeof parsed.typeName === 'string' &&
-      '$id' in parsed
-    ) {
-      return parsed.message;
-    }
-  } catch {
-    // Not JSON - treat as regular content
-  }
-
-  return null;
 }
 
 /**
@@ -155,11 +143,9 @@ export async function getWorkItemAttachment(
       // prevent overwriting arbitrary files on the host.
       const safeOutputPath = resolveAttachmentPath(options.outputPath);
 
-      // Ensure the output directory exists
+      // Ensure the output directory exists (mkdir -p is idempotent)
       const outputDir = path.dirname(safeOutputPath);
-      if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir, { recursive: true });
-      }
+      await fs.promises.mkdir(outputDir, { recursive: true });
 
       // Write the attachment to the output file
       const writeStream = fs.createWriteStream(safeOutputPath);
@@ -172,15 +158,16 @@ export async function getWorkItemAttachment(
       });
 
       // Get the file size
-      const stats = fs.statSync(safeOutputPath);
+      const stats = await fs.promises.stat(safeOutputPath);
 
       // Some servers return a JSON error envelope with a 200 status for
-      // missing attachments; detect it rather than leaving it on disk
-      if (stats.size <= 4096) {
-        const written = fs.readFileSync(safeOutputPath);
+      // missing attachments; detect it rather than leaving it on disk.
+      // Only small files can be an envelope, so re-read is bounded and async.
+      if (stats.size <= MAX_VSS_ENVELOPE_BYTES) {
+        const written = await fs.promises.readFile(safeOutputPath);
         const errorMessage = detectVssErrorEnvelope(written);
         if (errorMessage !== null) {
-          fs.unlinkSync(safeOutputPath);
+          await fs.promises.unlink(safeOutputPath);
           throw new Error(
             `Attachment ${options.attachmentId} not found: ${errorMessage}`,
           );
@@ -195,20 +182,19 @@ export async function getWorkItemAttachment(
       };
     }
 
-    // Inline return: buffer the content and classify by file name
-    const buffer = await streamToBuffer(attachmentStream);
+    // Inline return: buffer the content (capped) and classify by file name.
+    // The cap is enforced during the read so oversized attachments are never
+    // fully materialized in memory.
+    const buffer = await streamToBuffer(
+      attachmentStream,
+      MAX_INLINE_ATTACHMENT_SIZE_BYTES,
+    );
 
     // Detect server error envelopes returned with a 200 status
     const errorMessage = detectVssErrorEnvelope(buffer);
     if (errorMessage !== null) {
       throw new Error(
         `Attachment ${options.attachmentId} not found: ${errorMessage}`,
-      );
-    }
-
-    if (buffer.length > MAX_INLINE_ATTACHMENT_SIZE_BYTES) {
-      throw new Error(
-        `Attachment is too large to return inline (${buffer.length} bytes, limit ${MAX_INLINE_ATTACHMENT_SIZE_BYTES}). Provide outputPath to save it to disk instead.`,
       );
     }
 

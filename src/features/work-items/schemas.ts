@@ -160,7 +160,7 @@ export const CreateWorkItemAttachmentSchema = z
       .string()
       .optional()
       .describe(
-        'The absolute path to the file to upload as an attachment. Provide either filePath or content, not both.',
+        'Path to the file to upload, relative to the attachments directory (AZURE_DEVOPS_ATTACHMENTS_DIR, defaults to the working directory). Absolute paths and paths escaping that directory are rejected. Provide either filePath or content, not both.',
       ),
     content: z
       .string()
@@ -205,7 +205,7 @@ export const GetWorkItemAttachmentSchema = z.object({
     .string()
     .optional()
     .describe(
-      'The absolute path where the attachment will be saved. If omitted, images and text are returned inline (images as viewable content) and other binaries as base64.',
+      'Path where the attachment will be saved, relative to the attachments directory (AZURE_DEVOPS_ATTACHMENTS_DIR, defaults to the working directory). Absolute paths and paths escaping that directory are rejected. If omitted, images and text are returned inline (images as viewable content) and other binaries as base64.',
     ),
 });
 

@@ -212,8 +212,25 @@ export const handleWorkItemsRequest: RequestHandler = async (
             ],
           };
         case 'text':
+          // Return the text content, plus a metadata block preserving the
+          // detected mimeType (e.g. image/svg+xml, application/json) which a
+          // plain text block cannot carry on its own.
           return {
-            content: [{ type: 'text', text: result.text }],
+            content: [
+              { type: 'text', text: result.text },
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    fileName: result.fileName,
+                    mimeType: result.mimeType,
+                    size: result.size,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
           };
         case 'binary':
           // Return binary content as an embedded base64 resource

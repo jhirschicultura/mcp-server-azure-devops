@@ -6,6 +6,7 @@ import {
   VersionControlRecursionType,
 } from 'azure-devops-node-api/interfaces/GitInterfaces';
 import { AzureDevOpsResourceNotFoundError } from '../../../shared/errors';
+import { detectVssErrorEnvelope } from '../../../utils/vss-error-envelope';
 
 /**
  * Response format for file content
@@ -102,11 +103,9 @@ export async function getFileContent(
           });
 
           // Use a promise to wait for the stream to finish
-          const content = await new Promise<string>((resolve, reject) => {
+          const buffer = await new Promise<Buffer>((resolve, reject) => {
             contentStream.on('end', () => {
-              // Concatenate all chunks and convert to string
-              const buffer = Buffer.concat(chunks);
-              resolve(buffer.toString('utf8'));
+              resolve(Buffer.concat(chunks));
             });
 
             contentStream.on('error', (err) => {
@@ -114,14 +113,28 @@ export async function getFileContent(
             });
           });
 
+          // On-premises Azure DevOps Server can return a VSS error envelope
+          // with a 200 status instead of a proper HTTP error; surface it as a
+          // not-found rather than returning the error JSON as file content.
+          const envelopeMessage = detectVssErrorEnvelope(buffer);
+          if (envelopeMessage !== null) {
+            throw new AzureDevOpsResourceNotFoundError(
+              `Path '${path}' not found in repository '${repositoryId}' of project '${projectId}': ${envelopeMessage}`,
+            );
+          }
+
           return {
-            content,
+            content: buffer.toString('utf8'),
             isDirectory: false,
           };
         }
 
         throw new Error('No content returned from API');
       } catch (error) {
+        // Preserve an already-specific not-found (e.g. VSS error envelope)
+        if (error instanceof AzureDevOpsResourceNotFoundError) {
+          throw error;
+        }
         // If it's a 404 or similar error, throw a ResourceNotFoundError
         if (
           error instanceof Error &&

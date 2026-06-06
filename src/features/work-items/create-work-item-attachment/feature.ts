@@ -48,26 +48,41 @@ export async function createWorkItemAttachment(
       // prevent reading arbitrary files off the host (exfiltration).
       const safePath = resolveAttachmentPath(options.filePath);
 
-      // Check if file exists
-      if (!fs.existsSync(safePath)) {
+      // Stat first so the size cap is enforced before the file is read
+      // into memory (a missing file surfaces as ENOENT here).
+      let stat: fs.Stats;
+      try {
+        stat = await fs.promises.stat(safePath);
+      } catch {
         throw new Error(`File does not exist: ${options.filePath}`);
       }
 
-      fileBuffer = fs.readFileSync(safePath);
+      if (stat.size > MAX_ATTACHMENT_SIZE_BYTES) {
+        throw new Error(
+          `Attachment is too large (${stat.size} bytes). Maximum supported size is ${MAX_ATTACHMENT_SIZE_BYTES} bytes. Note: your Azure DevOps server may enforce a smaller limit.`,
+        );
+      }
+
+      fileBuffer = await fs.promises.readFile(safePath);
       fileName = options.fileName || path.basename(safePath);
     } else {
       if (!options.fileName) {
         throw new Error('fileName is required when content is provided');
       }
 
+      // Estimate the decoded size from the base64 length and reject before
+      // allocating the buffer (decoded bytes ≈ length * 3 / 4).
+      const estimatedBytes = Math.floor(
+        ((options.content as string).length * 3) / 4,
+      );
+      if (estimatedBytes > MAX_ATTACHMENT_SIZE_BYTES) {
+        throw new Error(
+          `Attachment is too large (~${estimatedBytes} bytes). Maximum supported size is ${MAX_ATTACHMENT_SIZE_BYTES} bytes. Note: your Azure DevOps server may enforce a smaller limit.`,
+        );
+      }
+
       fileBuffer = Buffer.from(options.content as string, 'base64');
       fileName = options.fileName;
-    }
-
-    if (fileBuffer.length > MAX_ATTACHMENT_SIZE_BYTES) {
-      throw new Error(
-        `Attachment is too large (${fileBuffer.length} bytes). Maximum supported size is ${MAX_ATTACHMENT_SIZE_BYTES} bytes. Note: your Azure DevOps server may enforce a smaller limit.`,
-      );
     }
 
     const witApi = await connection.getWorkItemTrackingApi();

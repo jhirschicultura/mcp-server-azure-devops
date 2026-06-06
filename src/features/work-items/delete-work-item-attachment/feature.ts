@@ -1,6 +1,7 @@
 import { WebApi } from 'azure-devops-node-api';
 import { WorkItemExpand } from 'azure-devops-node-api/interfaces/WorkItemTrackingInterfaces';
 import { AzureDevOpsError } from '../../../shared/errors';
+import { parseAttachmentId } from '../../../utils/attachment-url';
 import { DeleteWorkItemAttachmentOptions, WorkItem } from '../types';
 
 /**
@@ -38,12 +39,15 @@ export async function deleteWorkItemAttachment(
       throw new Error(`Work item ${options.workItemId} not found`);
     }
 
-    // Find the attachment relation by matching the attachment ID in the URL
+    // Find the attachment relation by matching the parsed attachment ID
+    // exactly (not a substring of the URL, which could match the wrong
+    // relation). Uses the same parser as list_work_item_attachments so the
+    // ids agree.
     const relations = workItem.relations || [];
     const attachmentIndex = relations.findIndex(
       (relation) =>
         relation.rel === 'AttachedFile' &&
-        relation.url?.includes(options.attachmentId),
+        parseAttachmentId(relation.url) === options.attachmentId,
     );
 
     if (attachmentIndex === -1) {
