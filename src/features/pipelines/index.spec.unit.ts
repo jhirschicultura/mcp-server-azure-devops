@@ -1,3 +1,4 @@
+import { getTextContent } from '@/shared/test/test-helpers';
 import { WebApi } from 'azure-devops-node-api';
 import { CallToolRequest } from '@modelcontextprotocol/sdk/types.js';
 import { isPipelinesRequest, handlePipelinesRequest } from './index';
@@ -70,9 +71,9 @@ describe('Pipelines Request Handlers', () => {
 
       const response = await handlePipelinesRequest(mockConnection, request);
       expect(response.content).toHaveLength(1);
-      expect(
-        JSON.parse((response.content[0] as { text: string }).text as string),
-      ).toEqual(mockPipelines);
+      expect(JSON.parse(getTextContent(response, 0) as string)).toEqual(
+        mockPipelines,
+      );
       expect(listPipelines).toHaveBeenCalledWith(
         mockConnection,
         expect.objectContaining({
@@ -98,9 +99,9 @@ describe('Pipelines Request Handlers', () => {
 
       const response = await handlePipelinesRequest(mockConnection, request);
       expect(response.content).toHaveLength(1);
-      expect(
-        JSON.parse((response.content[0] as { text: string }).text as string),
-      ).toEqual(mockPipeline);
+      expect(JSON.parse(getTextContent(response, 0) as string)).toEqual(
+        mockPipeline,
+      );
       expect(getPipeline).toHaveBeenCalledWith(
         mockConnection,
         expect.objectContaining({
@@ -127,9 +128,9 @@ describe('Pipelines Request Handlers', () => {
 
       const response = await handlePipelinesRequest(mockConnection, request);
       expect(response.content).toHaveLength(1);
-      expect(
-        JSON.parse((response.content[0] as { text: string }).text as string),
-      ).toEqual(mockRun);
+      expect(JSON.parse(getTextContent(response, 0) as string)).toEqual(
+        mockRun,
+      );
       expect(triggerPipeline).toHaveBeenCalledWith(
         mockConnection,
         expect.objectContaining({
@@ -155,9 +156,9 @@ describe('Pipelines Request Handlers', () => {
       } as CallToolRequest;
 
       const response = await handlePipelinesRequest(mockConnection, request);
-      expect(
-        JSON.parse((response.content[0] as { text: string }).text as string),
-      ).toEqual(mockRuns);
+      expect(JSON.parse(getTextContent(response, 0) as string)).toEqual(
+        mockRuns,
+      );
       expect(listPipelineRuns).toHaveBeenCalledWith(
         mockConnection,
         expect.objectContaining({
@@ -183,9 +184,9 @@ describe('Pipelines Request Handlers', () => {
       } as CallToolRequest;
 
       const response = await handlePipelinesRequest(mockConnection, request);
-      expect(
-        JSON.parse((response.content[0] as { text: string }).text as string),
-      ).toEqual(mockRun);
+      expect(JSON.parse(getTextContent(response, 0) as string)).toEqual(
+        mockRun,
+      );
       expect(getPipelineRun).toHaveBeenCalledWith(
         mockConnection,
         expect.objectContaining({
@@ -212,9 +213,9 @@ describe('Pipelines Request Handlers', () => {
       } as CallToolRequest;
 
       const response = await handlePipelinesRequest(mockConnection, request);
-      expect(
-        JSON.parse((response.content[0] as { text: string }).text as string),
-      ).toEqual(mockTimeline);
+      expect(JSON.parse(getTextContent(response, 0) as string)).toEqual(
+        mockTimeline,
+      );
       expect(getPipelineTimeline).toHaveBeenCalledWith(
         mockConnection,
         expect.objectContaining({
@@ -242,7 +243,7 @@ describe('Pipelines Request Handlers', () => {
       } as CallToolRequest;
 
       const response = await handlePipelinesRequest(mockConnection, request);
-      expect((response.content[0] as { text: string }).text).toBe('log lines');
+      expect(getTextContent(response, 0)).toBe('log lines');
       expect(getPipelineLog).toHaveBeenCalledWith(
         mockConnection,
         expect.objectContaining({

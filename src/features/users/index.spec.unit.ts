@@ -1,3 +1,4 @@
+import { getTextContent } from '@/shared/test/test-helpers';
 import { WebApi } from 'azure-devops-node-api';
 import { CallToolRequest } from '@modelcontextprotocol/sdk/types.js';
 import { isUsersRequest, handleUsersRequest } from './index';
@@ -48,9 +49,9 @@ describe('Users Request Handlers', () => {
 
       const response = await handleUsersRequest(mockConnection, request);
       expect(response.content).toHaveLength(1);
-      expect(
-        JSON.parse((response.content[0] as { text: string }).text as string),
-      ).toEqual(mockUserProfile);
+      expect(JSON.parse(getTextContent(response, 0) as string)).toEqual(
+        mockUserProfile,
+      );
       expect(getMe).toHaveBeenCalledWith(mockConnection);
     });
 

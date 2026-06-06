@@ -46,6 +46,38 @@ export function getTestConfig(): AzureDevOpsConfig | null {
 }
 
 /**
+ * A single item in a tool result's `content` array.
+ *
+ * The MCP SDK types `content` as a discriminated union (text | image |
+ * resource | ...). Only the text variant carries a `text` field.
+ */
+type ToolContentItem = { type: string; text?: string };
+
+/**
+ * Extract text from a tool result's content array, narrowing the SDK's
+ * discriminated content union to the text variant.
+ *
+ * Throws a descriptive error if the item at `index` is not text content,
+ * which gives a far clearer failure than a runtime `undefined` would.
+ *
+ * @param result A tool result (or anything with a `content` array)
+ * @param index The content item index to read (default 0)
+ * @returns The text of the content item
+ */
+export function getTextContent(
+  result: { content: ToolContentItem[] },
+  index = 0,
+): string {
+  const item = result.content[index];
+  if (!item || item.type !== 'text' || typeof item.text !== 'string') {
+    throw new Error(
+      `Expected text content at index ${index}, got '${item?.type ?? 'undefined'}'`,
+    );
+  }
+  return item.text;
+}
+
+/**
  * Determines if integration tests should be skipped
  *
  * @returns true if integration tests should be skipped
