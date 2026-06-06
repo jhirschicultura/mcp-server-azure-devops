@@ -82,6 +82,40 @@ async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
 }
 
 /**
+ * Detect a VSS error envelope returned with a 200 status.
+ *
+ * Some servers (notably on-premises Azure DevOps Server) respond to
+ * requests for missing attachments with a JSON error body instead of an
+ * HTTP error, e.g.:
+ * `{"$id":"1","message":"...","typeName":"...Exception...","eventId":3000}`
+ *
+ * @returns The error message if the buffer is an error envelope, else null
+ */
+function detectVssErrorEnvelope(buffer: Buffer): string | null {
+  if (buffer.length === 0 || buffer.length > 4096 || buffer[0] !== 0x7b) {
+    // Not a small JSON object ('{' = 0x7b)
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(buffer.toString('utf8'));
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof parsed.message === 'string' &&
+      typeof parsed.typeName === 'string' &&
+      '$id' in parsed
+    ) {
+      return parsed.message;
+    }
+  } catch {
+    // Not JSON - treat as regular content
+  }
+
+  return null;
+}
+
+/**
  * Get an attachment from a work item
  *
  * When `outputPath` is provided, the attachment is saved to the local
@@ -135,6 +169,19 @@ export async function getWorkItemAttachment(
       // Get the file size
       const stats = fs.statSync(options.outputPath);
 
+      // Some servers return a JSON error envelope with a 200 status for
+      // missing attachments; detect it rather than leaving it on disk
+      if (stats.size <= 4096) {
+        const written = fs.readFileSync(options.outputPath);
+        const errorMessage = detectVssErrorEnvelope(written);
+        if (errorMessage !== null) {
+          fs.unlinkSync(options.outputPath);
+          throw new Error(
+            `Attachment ${options.attachmentId} not found: ${errorMessage}`,
+          );
+        }
+      }
+
       return {
         kind: 'file',
         filePath: options.outputPath,
@@ -145,6 +192,14 @@ export async function getWorkItemAttachment(
 
     // Inline return: buffer the content and classify by file name
     const buffer = await streamToBuffer(attachmentStream);
+
+    // Detect server error envelopes returned with a 200 status
+    const errorMessage = detectVssErrorEnvelope(buffer);
+    if (errorMessage !== null) {
+      throw new Error(
+        `Attachment ${options.attachmentId} not found: ${errorMessage}`,
+      );
+    }
 
     if (buffer.length > MAX_INLINE_ATTACHMENT_SIZE_BYTES) {
       throw new Error(

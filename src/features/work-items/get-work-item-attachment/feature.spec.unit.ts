@@ -97,6 +97,47 @@ describe('getWorkItemAttachment unit', () => {
     });
   });
 
+  test('should throw not-found error when the server returns a VSS error envelope', async () => {
+    // Some servers (notably on-prem Azure DevOps Server) return a JSON
+    // error envelope with a 200 status for missing attachments
+    const envelope = Buffer.from(
+      JSON.stringify({
+        $id: '1',
+        innerException: null,
+        message: 'You must provide a value for the id parameter.',
+        typeName:
+          'Microsoft.VisualStudio.Services.Common.VssPropertyValidationException, Microsoft.VisualStudio.Services.Common',
+        typeKey: 'VssPropertyValidationException',
+        errorCode: 0,
+        eventId: 3000,
+      }),
+    );
+    const mockConnection = mockConnectionWithContent(envelope);
+
+    await expect(
+      getWorkItemAttachment(mockConnection, {
+        attachmentId: '00000000-0000-0000-0000-000000000000',
+        fileName: 'missing.txt',
+      }),
+    ).rejects.toThrow(/not found: You must provide a value/);
+  });
+
+  test('should not treat ordinary small JSON attachments as error envelopes', async () => {
+    const jsonContent = JSON.stringify({ setting: 'value', enabled: true });
+    const mockConnection = mockConnectionWithContent(Buffer.from(jsonContent));
+
+    const result = await getWorkItemAttachment(mockConnection, {
+      attachmentId: 'abc-123',
+      fileName: 'config.json',
+    });
+
+    expect(result.kind).toBe('text');
+    if (result.kind !== 'text') {
+      throw new Error('Expected text result');
+    }
+    expect(result.text).toBe(jsonContent);
+  });
+
   test('should throw error when inline content exceeds the size limit', async () => {
     const hugeBuffer = Buffer.alloc(MAX_INLINE_ATTACHMENT_SIZE_BYTES + 1);
     const mockConnection = mockConnectionWithContent(hugeBuffer);
