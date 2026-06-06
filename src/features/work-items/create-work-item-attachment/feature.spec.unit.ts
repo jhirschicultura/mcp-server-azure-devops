@@ -69,7 +69,7 @@ describe('createWorkItemAttachment unit', () => {
     // Act & Assert
     await expect(
       createWorkItemAttachment(mockConnection, 123, {
-        filePath: '/path/to/huge-file.bin',
+        filePath: 'huge-file.bin',
       }),
     ).rejects.toThrow(/Attachment is too large/);
   });
@@ -136,6 +136,32 @@ describe('createWorkItemAttachment unit', () => {
     expect(mockedFs.readFileSync).not.toHaveBeenCalled();
   });
 
+  // Test for absolute-path rejection (path sandbox)
+  test('should reject an absolute filePath outside the attachments dir', async () => {
+    const mockConnection: any = {
+      getWorkItemTrackingApi: jest.fn(),
+    };
+
+    await expect(
+      createWorkItemAttachment(mockConnection, 123, {
+        filePath: '/etc/passwd',
+      }),
+    ).rejects.toThrow(/absolute paths are not allowed/);
+  });
+
+  // Test for traversal rejection (path sandbox)
+  test('should reject a traversal filePath that escapes the attachments dir', async () => {
+    const mockConnection: any = {
+      getWorkItemTrackingApi: jest.fn(),
+    };
+
+    await expect(
+      createWorkItemAttachment(mockConnection, 123, {
+        filePath: '../../secret.txt',
+      }),
+    ).rejects.toThrow(/stay within the attachments directory/);
+  });
+
   // Test for file existence validation
   test('should throw error when file does not exist', async () => {
     // Arrange - mock file does not exist
@@ -148,9 +174,9 @@ describe('createWorkItemAttachment unit', () => {
     // Act & Assert
     await expect(
       createWorkItemAttachment(mockConnection, 123, {
-        filePath: '/path/to/nonexistent/file.txt',
+        filePath: 'nonexistent/file.txt',
       }),
-    ).rejects.toThrow('File does not exist: /path/to/nonexistent/file.txt');
+    ).rejects.toThrow(/File does not exist/);
   });
 
   // Test for error propagation
@@ -168,13 +194,13 @@ describe('createWorkItemAttachment unit', () => {
     // Act & Assert
     await expect(
       createWorkItemAttachment(mockConnection, 123, {
-        filePath: '/path/to/file.txt',
+        filePath: 'file.txt',
       }),
     ).rejects.toThrow(AzureDevOpsError);
 
     await expect(
       createWorkItemAttachment(mockConnection, 123, {
-        filePath: '/path/to/file.txt',
+        filePath: 'file.txt',
       }),
     ).rejects.toThrow('Custom error');
   });
@@ -193,7 +219,7 @@ describe('createWorkItemAttachment unit', () => {
     // Act & Assert
     await expect(
       createWorkItemAttachment(mockConnection, 123, {
-        filePath: '/path/to/file.txt',
+        filePath: 'file.txt',
       }),
     ).rejects.toThrow('Failed to create attachment: Unexpected error');
   });

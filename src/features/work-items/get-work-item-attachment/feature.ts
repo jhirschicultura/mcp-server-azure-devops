@@ -2,6 +2,7 @@ import { WebApi } from 'azure-devops-node-api';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AzureDevOpsError } from '../../../shared/errors';
+import { resolveAttachmentPath } from '../../../utils/attachment-paths';
 import {
   GetWorkItemAttachmentOptions,
   GetWorkItemAttachmentResult,
@@ -150,14 +151,18 @@ export async function getWorkItemAttachment(
     }
 
     if (options.outputPath) {
+      // Confine the output path to the sandboxed attachments directory to
+      // prevent overwriting arbitrary files on the host.
+      const safeOutputPath = resolveAttachmentPath(options.outputPath);
+
       // Ensure the output directory exists
-      const outputDir = path.dirname(options.outputPath);
+      const outputDir = path.dirname(safeOutputPath);
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
 
       // Write the attachment to the output file
-      const writeStream = fs.createWriteStream(options.outputPath);
+      const writeStream = fs.createWriteStream(safeOutputPath);
 
       await new Promise<void>((resolve, reject) => {
         attachmentStream.pipe(writeStream);
@@ -167,15 +172,15 @@ export async function getWorkItemAttachment(
       });
 
       // Get the file size
-      const stats = fs.statSync(options.outputPath);
+      const stats = fs.statSync(safeOutputPath);
 
       // Some servers return a JSON error envelope with a 200 status for
       // missing attachments; detect it rather than leaving it on disk
       if (stats.size <= 4096) {
-        const written = fs.readFileSync(options.outputPath);
+        const written = fs.readFileSync(safeOutputPath);
         const errorMessage = detectVssErrorEnvelope(written);
         if (errorMessage !== null) {
-          fs.unlinkSync(options.outputPath);
+          fs.unlinkSync(safeOutputPath);
           throw new Error(
             `Attachment ${options.attachmentId} not found: ${errorMessage}`,
           );
@@ -184,8 +189,8 @@ export async function getWorkItemAttachment(
 
       return {
         kind: 'file',
-        filePath: options.outputPath,
-        fileName: options.fileName || path.basename(options.outputPath),
+        filePath: safeOutputPath,
+        fileName: options.fileName || path.basename(safeOutputPath),
         size: stats.size,
       };
     }

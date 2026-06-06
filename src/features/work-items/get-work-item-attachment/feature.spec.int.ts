@@ -22,8 +22,9 @@ describeOrSkip('getWorkItemAttachment integration', () => {
   let connection: WebApi;
   let createdWorkItemId: number;
   let uploadedAttachmentId: string;
-  let testFilePath: string;
-  let downloadPath: string;
+  let attachmentsDir: string;
+  let downloadName: string;
+  let prevAttachmentsDir: string | undefined;
   const testFileContent =
     'This is test content for download integration tests.';
 
@@ -36,6 +37,11 @@ describeOrSkip('getWorkItemAttachment integration', () => {
       );
     }
     connection = testConnection;
+
+    // Sandbox file operations to a dedicated temp directory
+    attachmentsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ado-att-get-'));
+    prevAttachmentsDir = process.env.AZURE_DEVOPS_ATTACHMENTS_DIR;
+    process.env.AZURE_DEVOPS_ATTACHMENTS_DIR = attachmentsDir;
 
     // Create a work item to be used by the attachment tests
     const projectName =
@@ -58,14 +64,13 @@ describeOrSkip('getWorkItemAttachment integration', () => {
     }
     createdWorkItemId = workItem.id;
 
-    // Create a temporary test file and upload it
-    const tempDir = os.tmpdir();
-    testFilePath = path.join(tempDir, `test-download-${Date.now()}.txt`);
-    fs.writeFileSync(testFilePath, testFileContent);
+    // Create a test file inside the sandbox and upload it
+    const uploadName = `test-download-${Date.now()}.txt`;
+    fs.writeFileSync(path.join(attachmentsDir, uploadName), testFileContent);
 
     // Upload an attachment to the work item
     const uploadOptions: CreateWorkItemAttachmentOptions = {
-      filePath: testFilePath,
+      filePath: uploadName,
       fileName: 'test-download-file.txt',
     };
 
@@ -86,28 +91,32 @@ describeOrSkip('getWorkItemAttachment integration', () => {
     const urlParts = attachmentRelation.url.split('/');
     uploadedAttachmentId = urlParts[urlParts.length - 1];
 
-    // Set up download path
-    downloadPath = path.join(tempDir, `downloaded-${Date.now()}.txt`);
+    // Set up download path (relative to the sandbox)
+    downloadName = `downloaded-${Date.now()}.txt`;
   });
 
   afterAll(() => {
-    // Clean up the temporary test files
-    if (testFilePath && fs.existsSync(testFilePath)) {
-      fs.unlinkSync(testFilePath);
+    // Restore the env and clean up the temp directory
+    if (prevAttachmentsDir === undefined) {
+      delete process.env.AZURE_DEVOPS_ATTACHMENTS_DIR;
+    } else {
+      process.env.AZURE_DEVOPS_ATTACHMENTS_DIR = prevAttachmentsDir;
     }
-    if (downloadPath && fs.existsSync(downloadPath)) {
-      fs.unlinkSync(downloadPath);
+    if (attachmentsDir && fs.existsSync(attachmentsDir)) {
+      fs.rmSync(attachmentsDir, { recursive: true, force: true });
     }
   });
 
   test('should download an attachment from Azure DevOps', async () => {
     const options: GetWorkItemAttachmentOptions = {
       attachmentId: uploadedAttachmentId,
-      outputPath: downloadPath,
+      outputPath: downloadName,
     };
 
     // Act - make an actual API call to Azure DevOps
     const result = await getWorkItemAttachment(connection, options);
+
+    const expectedPath = path.join(attachmentsDir, downloadName);
 
     // Assert on the actual response
     expect(result).toBeDefined();
@@ -115,14 +124,14 @@ describeOrSkip('getWorkItemAttachment integration', () => {
     if (result.kind !== 'file') {
       throw new Error('Expected file result');
     }
-    expect(result.filePath).toBe(downloadPath);
+    expect(result.filePath).toBe(expectedPath);
     expect(result.size).toBeGreaterThan(0);
 
     // Verify the file was downloaded
-    expect(fs.existsSync(downloadPath)).toBe(true);
+    expect(fs.existsSync(expectedPath)).toBe(true);
 
     // Verify the content matches
-    const downloadedContent = fs.readFileSync(downloadPath, 'utf-8');
+    const downloadedContent = fs.readFileSync(expectedPath, 'utf-8');
     expect(downloadedContent).toBe(testFileContent);
   });
 
@@ -145,25 +154,28 @@ describeOrSkip('getWorkItemAttachment integration', () => {
   });
 
   test('should throw error when attachment does not exist', async () => {
-    const tempDir = os.tmpdir();
-    const nonExistentDownloadPath = path.join(
-      tempDir,
-      `nonexistent-${Date.now()}.txt`,
-    );
+    const nonExistentDownloadName = `nonexistent-${Date.now()}.txt`;
 
     const options: GetWorkItemAttachmentOptions = {
       attachmentId: '00000000-0000-0000-0000-000000000000', // Non-existent GUID
-      outputPath: nonExistentDownloadPath,
+      outputPath: nonExistentDownloadName,
     };
 
     // Act & Assert - should throw an error for non-existent attachment
     await expect(getWorkItemAttachment(connection, options)).rejects.toThrow(
       /Failed to get attachment|not found|404/i,
     );
+  });
 
-    // Clean up if file was somehow created
-    if (fs.existsSync(nonExistentDownloadPath)) {
-      fs.unlinkSync(nonExistentDownloadPath);
-    }
+  test('should reject an absolute outputPath outside the attachments dir', async () => {
+    const options: GetWorkItemAttachmentOptions = {
+      attachmentId: uploadedAttachmentId,
+      fileName: 'test-download-file.txt',
+      outputPath: '/etc/cron.d/evil',
+    };
+
+    await expect(getWorkItemAttachment(connection, options)).rejects.toThrow(
+      /absolute paths are not allowed/,
+    );
   });
 });

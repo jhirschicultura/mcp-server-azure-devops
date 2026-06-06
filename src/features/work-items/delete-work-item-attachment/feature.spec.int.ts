@@ -12,9 +12,6 @@ import {
   CreateWorkItemAttachmentOptions,
   DeleteWorkItemAttachmentOptions,
 } from '../types';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 
 const shouldSkip = shouldSkipIntegrationTest();
 const describeOrSkip = shouldSkip ? describe.skip : describe;
@@ -23,7 +20,6 @@ describeOrSkip('deleteWorkItemAttachment integration', () => {
   let connection: WebApi;
   let createdWorkItemId: number;
   let uploadedAttachmentId: string;
-  let testFilePath: string;
 
   beforeAll(async () => {
     // Get a real connection using environment variables
@@ -56,17 +52,11 @@ describeOrSkip('deleteWorkItemAttachment integration', () => {
     }
     createdWorkItemId = workItem.id;
 
-    // Create a temporary test file and upload it
-    const tempDir = os.tmpdir();
-    testFilePath = path.join(tempDir, `test-delete-${Date.now()}.txt`);
-    fs.writeFileSync(
-      testFilePath,
-      'This is test content for delete integration tests.',
-    );
-
-    // Upload an attachment to the work item
+    // Upload an attachment from base64 content (no filesystem needed)
     const uploadOptions: CreateWorkItemAttachmentOptions = {
-      filePath: testFilePath,
+      content: Buffer.from(
+        'This is test content for delete integration tests.',
+      ).toString('base64'),
       fileName: 'test-delete-file.txt',
     };
 
@@ -86,13 +76,6 @@ describeOrSkip('deleteWorkItemAttachment integration', () => {
     // Extract attachment ID from URL (last segment)
     const urlParts = attachmentRelation.url.split('/');
     uploadedAttachmentId = urlParts[urlParts.length - 1];
-  });
-
-  afterAll(() => {
-    // Clean up the temporary test file
-    if (testFilePath && fs.existsSync(testFilePath)) {
-      fs.unlinkSync(testFilePath);
-    }
   });
 
   test('should delete an attachment from a work item', async () => {

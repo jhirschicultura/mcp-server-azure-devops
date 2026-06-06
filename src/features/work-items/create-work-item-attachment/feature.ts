@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Readable } from 'stream';
 import { AzureDevOpsError } from '../../../shared/errors';
+import { resolveAttachmentPath } from '../../../utils/attachment-paths';
 import { CreateWorkItemAttachmentOptions, WorkItem } from '../types';
 
 /**
@@ -43,13 +44,17 @@ export async function createWorkItemAttachment(
     let fileName: string;
 
     if (options.filePath) {
+      // Confine the path to the sandboxed attachments directory to
+      // prevent reading arbitrary files off the host (exfiltration).
+      const safePath = resolveAttachmentPath(options.filePath);
+
       // Check if file exists
-      if (!fs.existsSync(options.filePath)) {
+      if (!fs.existsSync(safePath)) {
         throw new Error(`File does not exist: ${options.filePath}`);
       }
 
-      fileBuffer = fs.readFileSync(options.filePath);
-      fileName = options.fileName || path.basename(options.filePath);
+      fileBuffer = fs.readFileSync(safePath);
+      fileName = options.fileName || path.basename(safePath);
     } else {
       if (!options.fileName) {
         throw new Error('fileName is required when content is provided');

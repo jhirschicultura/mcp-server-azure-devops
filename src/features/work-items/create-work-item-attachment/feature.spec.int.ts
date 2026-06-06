@@ -19,7 +19,9 @@ const describeOrSkip = shouldSkip ? describe.skip : describe;
 describeOrSkip('createWorkItemAttachment integration', () => {
   let connection: WebApi;
   let createdWorkItemId: number;
-  let testFilePath: string;
+  let attachmentsDir: string;
+  let testFileName: string;
+  let prevAttachmentsDir: string | undefined;
 
   beforeAll(async () => {
     // Get a real connection using environment variables
@@ -30,6 +32,11 @@ describeOrSkip('createWorkItemAttachment integration', () => {
       );
     }
     connection = testConnection;
+
+    // Sandbox file operations to a dedicated temp directory
+    attachmentsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ado-att-create-'));
+    prevAttachmentsDir = process.env.AZURE_DEVOPS_ATTACHMENTS_DIR;
+    process.env.AZURE_DEVOPS_ATTACHMENTS_DIR = attachmentsDir;
 
     // Create a work item to be used by the attachment tests
     const projectName =
@@ -52,25 +59,29 @@ describeOrSkip('createWorkItemAttachment integration', () => {
     }
     createdWorkItemId = workItem.id;
 
-    // Create a temporary test file
-    const tempDir = os.tmpdir();
-    testFilePath = path.join(tempDir, `test-attachment-${Date.now()}.txt`);
+    // Create a test file inside the sandbox; pass it by relative name
+    testFileName = `test-attachment-${Date.now()}.txt`;
     fs.writeFileSync(
-      testFilePath,
+      path.join(attachmentsDir, testFileName),
       'This is a test file for attachment integration tests.',
     );
   });
 
   afterAll(() => {
-    // Clean up the temporary test file
-    if (testFilePath && fs.existsSync(testFilePath)) {
-      fs.unlinkSync(testFilePath);
+    // Restore the env and clean up the temp directory
+    if (prevAttachmentsDir === undefined) {
+      delete process.env.AZURE_DEVOPS_ATTACHMENTS_DIR;
+    } else {
+      process.env.AZURE_DEVOPS_ATTACHMENTS_DIR = prevAttachmentsDir;
+    }
+    if (attachmentsDir && fs.existsSync(attachmentsDir)) {
+      fs.rmSync(attachmentsDir, { recursive: true, force: true });
     }
   });
 
   test('should add an attachment to a work item', async () => {
     const options: CreateWorkItemAttachmentOptions = {
-      filePath: testFilePath,
+      filePath: testFileName,
     };
 
     // Act - make an actual API call to Azure DevOps
@@ -95,7 +106,7 @@ describeOrSkip('createWorkItemAttachment integration', () => {
   test('should add an attachment with a custom file name', async () => {
     const customFileName = `custom-name-${Date.now()}.txt`;
     const options: CreateWorkItemAttachmentOptions = {
-      filePath: testFilePath,
+      filePath: testFileName,
       fileName: customFileName,
     };
 
@@ -123,7 +134,7 @@ describeOrSkip('createWorkItemAttachment integration', () => {
   test('should add an attachment with a comment', async () => {
     const comment = 'Test attachment comment';
     const options: CreateWorkItemAttachmentOptions = {
-      filePath: testFilePath,
+      filePath: testFileName,
       comment: comment,
     };
 
@@ -178,12 +189,22 @@ describeOrSkip('createWorkItemAttachment integration', () => {
 
   test('should throw error when file does not exist', async () => {
     const options: CreateWorkItemAttachmentOptions = {
-      filePath: '/path/to/nonexistent/file.txt',
+      filePath: 'nonexistent/file.txt',
     };
 
     // Act & Assert - should throw an error for non-existent file
     await expect(
       createWorkItemAttachment(connection, createdWorkItemId, options),
     ).rejects.toThrow(/Failed to create attachment|ENOENT|does not exist/);
+  });
+
+  test('should reject an absolute filePath outside the attachments dir', async () => {
+    const options: CreateWorkItemAttachmentOptions = {
+      filePath: '/etc/passwd',
+    };
+
+    await expect(
+      createWorkItemAttachment(connection, createdWorkItemId, options),
+    ).rejects.toThrow(/absolute paths are not allowed/);
   });
 });

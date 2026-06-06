@@ -95,9 +95,7 @@ AZURE_DEVOPS_AUTH_METHOD=${authMethod}
         version: '1.0.0',
       },
       {
-        capabilities: {
-          tools: {},
-        },
+        capabilities: {},
       },
     );
 
@@ -154,7 +152,7 @@ AZURE_DEVOPS_AUTH_METHOD=${authMethod}
       expect(content.length).toBeGreaterThan(0);
 
       // Parse the result content
-      const resultText = content[0].text;
+      const resultText = (content[0] as { text: string }).text;
       const organizations: Organization[] = JSON.parse(resultText);
 
       // Verify the response structure
@@ -184,7 +182,7 @@ AZURE_DEVOPS_AUTH_METHOD=${authMethod}
       expect(content.length).toBeGreaterThan(0);
 
       // Verify we got a valid JSON response
-      const resultText = content[0].text;
+      const resultText = (content[0] as { text: string }).text;
       const organizations = JSON.parse(resultText);
       expect(Array.isArray(organizations)).toBe(true);
     });
@@ -204,7 +202,7 @@ AZURE_DEVOPS_AUTH_METHOD=${authMethod}
       expect(content.length).toBeGreaterThan(0);
 
       // Verify we got a valid JSON response with user info
-      const resultText = content[0].text;
+      const resultText = (content[0] as { text: string }).text;
       const userInfo = JSON.parse(resultText);
       expect(userInfo).toHaveProperty('id');
       expect(userInfo).toHaveProperty('displayName');
@@ -227,7 +225,7 @@ AZURE_DEVOPS_AUTH_METHOD=${authMethod}
       expect(content.length).toBeGreaterThan(0);
 
       // Verify we got a valid JSON response
-      const resultText = content[0].text;
+      const resultText = (content[0] as { text: string }).text;
       const projects = JSON.parse(resultText);
       expect(Array.isArray(projects)).toBe(true);
     });
@@ -247,7 +245,7 @@ AZURE_DEVOPS_AUTH_METHOD=${authMethod}
       expect(content.length).toBeGreaterThan(0);
 
       // Verify we got a valid JSON response with project info
-      const resultText = content[0].text;
+      const resultText = (content[0] as { text: string }).text;
       const project = JSON.parse(resultText);
       expect(project).toHaveProperty('id');
       expect(project).toHaveProperty('name');
@@ -268,7 +266,7 @@ AZURE_DEVOPS_AUTH_METHOD=${authMethod}
       expect(content.length).toBeGreaterThan(0);
 
       // Verify we got a valid JSON response
-      const resultText = content[0].text;
+      const resultText = (content[0] as { text: string }).text;
       const repositories = JSON.parse(resultText);
       expect(Array.isArray(repositories)).toBe(true);
     });

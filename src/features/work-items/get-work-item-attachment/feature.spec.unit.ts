@@ -40,6 +40,30 @@ describe('getWorkItemAttachment unit', () => {
     ).rejects.toThrow('Attachment ID is required');
   });
 
+  test('should reject an absolute outputPath outside the attachments dir', async () => {
+    const mockConnection = mockConnectionWithContent(Buffer.from('data'));
+
+    await expect(
+      getWorkItemAttachment(mockConnection, {
+        attachmentId: 'abc-123',
+        fileName: 'x.bin',
+        outputPath: '/etc/cron.d/evil',
+      }),
+    ).rejects.toThrow(/absolute paths are not allowed/);
+  });
+
+  test('should reject a traversal outputPath that escapes the attachments dir', async () => {
+    const mockConnection = mockConnectionWithContent(Buffer.from('data'));
+
+    await expect(
+      getWorkItemAttachment(mockConnection, {
+        attachmentId: 'abc-123',
+        fileName: 'x.bin',
+        outputPath: '../../evil.sh',
+      }),
+    ).rejects.toThrow(/stay within the attachments directory/);
+  });
+
   test('should return images inline as base64 when outputPath is omitted', async () => {
     // Arrange - PNG content returned by the API
     const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
