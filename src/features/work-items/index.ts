@@ -126,6 +126,7 @@ export const handleWorkItemsRequest: RequestHandler = async (
           priority: args.priority,
           severity: args.severity,
           parentId: args.parentId,
+          tags: args.tags,
           additionalFields: args.additionalFields,
         },
       );
@@ -145,6 +146,9 @@ export const handleWorkItemsRequest: RequestHandler = async (
         priority: args.priority,
         severity: args.severity,
         state: args.state,
+        tags: args.tags,
+        tagsToAdd: args.tagsToAdd,
+        tagsToRemove: args.tagsToRemove,
         additionalFields: args.additionalFields,
       });
       return {

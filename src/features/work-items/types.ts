@@ -35,6 +35,7 @@ export interface CreateWorkItemOptions {
   /** Severity picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low". */
   severity?: string;
   parentId?: number;
+  tags?: string[];
   additionalFields?: Record<string, string | number | boolean | null>;
 }
 
@@ -57,6 +58,9 @@ export interface UpdateWorkItemOptions {
   /** Severity picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low". */
   severity?: string;
   state?: string;
+  tags?: string[];
+  tagsToAdd?: string[];
+  tagsToRemove?: string[];
   additionalFields?: Record<string, string | number | boolean | null>;
 }
 
