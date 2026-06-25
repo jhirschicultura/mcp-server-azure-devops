@@ -99,6 +99,32 @@ describeOrSkip('createWorkItem integration', () => {
     }
   });
 
+  test('should set severity on a created work item', async () => {
+    const projectName =
+      process.env.AZURE_DEVOPS_DEFAULT_PROJECT || 'DefaultProject';
+    const uniqueTitle = `Severity Test ${new Date().toISOString()}`;
+
+    const options: CreateWorkItemOptions = {
+      title: uniqueTitle,
+      description: 'Verifies that severity is applied, not ignored',
+      severity: '1 - Critical',
+    };
+
+    // Bug carries the Microsoft.VSTS.Common.Severity field.
+    const result = await createWorkItem(
+      connection,
+      projectName,
+      'Bug',
+      options,
+    );
+
+    expect(result).toBeDefined();
+    expect(result.fields).toBeDefined();
+    expect(result.fields?.['Microsoft.VSTS.Common.Severity']).toBe(
+      '1 - Critical',
+    );
+  });
+
   test('should create a child work item with parent-child relationship', async () => {
     // For a true integration test, use a real project
     const projectName =
