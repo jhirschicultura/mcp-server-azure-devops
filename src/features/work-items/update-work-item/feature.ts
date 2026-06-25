@@ -86,8 +86,16 @@ export async function updateWorkItem(
     // Add any additional fields
     if (options.additionalFields) {
       for (const [key, value] of Object.entries(options.additionalFields)) {
+        // System.Tags is a multi-value field: a JSON Patch `add` op MERGES the
+        // supplied tags into the existing set, so tags can only ever be added —
+        // never removed — and re-supplying tags that are already present is a
+        // no-op that does not even bump the work item revision. Use `replace`
+        // so the provided semicolon-delimited list becomes the exact tag set
+        // (adds new tags, removes absent ones). `replace` also works when the
+        // item currently has no tags, and an empty string clears them all.
+        const op = key === 'System.Tags' ? 'replace' : 'add';
         document.push({
-          op: 'add',
+          op,
           path: `/fields/${key}`,
           value: value,
         });
