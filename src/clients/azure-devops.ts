@@ -333,15 +333,18 @@ export class WikiClient {
     // Use the default project if not provided
     const project = projectId || defaultProject;
 
-    // Encode the page path, handling forward slashes properly
-    const encodedPagePath = encodeURIComponent(pagePath).replace(/%2F/g, '/');
+    // Pass the raw path; axios encodes query parameters exactly once. Encoding
+    // it ourselves here caused double-encoding (e.g. a space became %2520
+    // instead of %20), so the page was created with the literal escape
+    // sequences in its name. Matches getPage's handling.
+    const normalizedPath = pagePath.startsWith('/') ? pagePath : `/${pagePath}`;
 
     // Construct the URL to create the wiki page
     const url = `${this.baseUrl}/${project}/_apis/wiki/wikis/${wikiId}/pages`;
 
     const params: Record<string, string> = {
       'api-version': '7.1',
-      path: encodedPagePath,
+      path: normalizedPath,
     };
 
     // Prepare the request payload
@@ -463,14 +466,17 @@ export class WikiClient {
       }
     }
 
-    // Encode the page path, handling forward slashes properly
-    const encodedPagePath = encodeURIComponent(pagePath).replace(/%2F/g, '/');
+    // Pass the raw path; axios encodes query parameters exactly once. Encoding
+    // it ourselves here caused double-encoding (e.g. a space became %2520
+    // instead of %20), so the page was stored with the literal escape
+    // sequences in its name. Matches getPage's handling.
+    const normalizedPath = pagePath.startsWith('/') ? pagePath : `/${pagePath}`;
 
     // Construct the URL to update the wiki page
     const url = `${this.baseUrl}/${project}/_apis/wiki/wikis/${wikiId}/pages`;
     const params: Record<string, string> = {
       'api-version': '7.1',
-      path: encodedPagePath,
+      path: normalizedPath,
     };
 
     // Add optional comment parameter if provided
