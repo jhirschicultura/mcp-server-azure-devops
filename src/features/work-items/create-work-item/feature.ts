@@ -43,6 +43,19 @@ export async function createWorkItem(
       });
     }
 
+    // Control the rendering format of the description / multi-line fields.
+    // Azure DevOps defaults multi-line fields to HTML, so omitting this keeps
+    // the existing behavior. `markdown` requires a server that supports it
+    // (Azure DevOps Services or Azure DevOps Server 2022.1+); older on-prem
+    // servers reject the /multilineFieldsFormat path.
+    if (options.descriptionFormat) {
+      document.push({
+        op: 'add',
+        path: '/multilineFieldsFormat/System.Description',
+        value: options.descriptionFormat === 'markdown' ? 'Markdown' : 'Html',
+      });
+    }
+
     if (options.assignedTo) {
       document.push({
         op: 'add',
@@ -72,6 +85,14 @@ export async function createWorkItem(
         op: 'add',
         path: '/fields/Microsoft.VSTS.Common.Priority',
         value: options.priority,
+      });
+    }
+
+    if (options.severity !== undefined) {
+      document.push({
+        op: 'add',
+        path: '/fields/Microsoft.VSTS.Common.Severity',
+        value: options.severity,
       });
     }
 

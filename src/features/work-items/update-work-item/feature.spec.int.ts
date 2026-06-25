@@ -100,6 +100,34 @@ describeOrSkip('updateWorkItem integration', () => {
     }
   });
 
+  test('should replace the tag set, removing tags absent from the new list', async () => {
+    // Seed a known tag set including a tag we will later drop.
+    const seeded = await updateWorkItem(connection, createdWorkItemId, {
+      additionalFields: {
+        'System.Tags': 'keep-me; drop-me; also-keep',
+      },
+    });
+    expect(seeded.fields?.['System.Tags']).toContain('drop-me');
+    const revBefore = seeded.rev;
+
+    // Tags-only update that drops "drop-me" and adds "brand-new".
+    const result = await updateWorkItem(connection, createdWorkItemId, {
+      additionalFields: {
+        'System.Tags': 'keep-me; also-keep; brand-new',
+      },
+    });
+
+    expect(result.fields).toBeDefined();
+    const tags = result.fields?.['System.Tags'];
+    expect(tags).toContain('keep-me');
+    expect(tags).toContain('also-keep');
+    expect(tags).toContain('brand-new');
+    // The removed tag must no longer be present.
+    expect(tags).not.toContain('drop-me');
+    // A tags-only change must increment the revision.
+    expect(result.rev).toBeGreaterThan(revBefore as number);
+  });
+
   test('should throw error when updating non-existent work item', async () => {
     // Use a very large ID that's unlikely to exist
     const nonExistentId = 999999999;

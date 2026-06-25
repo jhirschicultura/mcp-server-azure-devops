@@ -55,7 +55,13 @@ export const CreateWorkItemSchema = z.object({
     .string()
     .optional()
     .describe(
-      'Work item description in HTML format. Multi-line text fields (i.e., System.History, AcceptanceCriteria, etc.) must use HTML format. Do not use CDATA tags.',
+      'Work item description. Defaults to HTML format (use HTML markup, not CDATA). To send Markdown instead, set descriptionFormat to "markdown" (requires Azure DevOps Services or Server 2022.1+).',
+    ),
+  descriptionFormat: z
+    .enum(['html', 'markdown'])
+    .optional()
+    .describe(
+      'Format for the description / multi-line text fields. Omit for the server default (HTML). "markdown" requires Azure DevOps Services or Azure DevOps Server 2022.1+; older on-prem servers reject it.',
     ),
   assignedTo: z
     .string()
@@ -67,6 +73,12 @@ export const CreateWorkItemSchema = z.object({
     .optional()
     .describe('The iteration path for the work item'),
   priority: z.number().optional().describe('The priority of the work item'),
+  severity: z
+    .string()
+    .optional()
+    .describe(
+      'The severity of the work item as the full picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low".',
+    ),
   parentId: z
     .number()
     .optional()
@@ -89,7 +101,13 @@ export const UpdateWorkItemSchema = z.object({
     .string()
     .optional()
     .describe(
-      'Work item description in HTML format. Multi-line text fields (i.e., System.History, AcceptanceCriteria, etc.) must use HTML format. Do not use CDATA tags.',
+      'Work item description. Defaults to HTML format (use HTML markup, not CDATA). To send Markdown instead, set descriptionFormat to "markdown" (requires Azure DevOps Services or Server 2022.1+).',
+    ),
+  descriptionFormat: z
+    .enum(['html', 'markdown'])
+    .optional()
+    .describe(
+      'Format for the description / multi-line text fields. Omit to leave the existing format unchanged. "markdown" requires Azure DevOps Services or Azure DevOps Server 2022.1+; older on-prem servers reject it.',
     ),
   assignedTo: z
     .string()
@@ -107,6 +125,12 @@ export const UpdateWorkItemSchema = z.object({
     .number()
     .optional()
     .describe('The updated priority of the work item'),
+  severity: z
+    .string()
+    .optional()
+    .describe(
+      'The updated severity of the work item as the full picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low".',
+    ),
   state: z.string().optional().describe('The updated state of the work item'),
   additionalFields: z
     .record(z.string(), z.any())

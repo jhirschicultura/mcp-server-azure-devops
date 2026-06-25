@@ -21,10 +21,18 @@ export interface ListWorkItemsOptions {
 export interface CreateWorkItemOptions {
   title: string;
   description?: string;
+  /**
+   * Format of the description / multi-line fields. Defaults to the server
+   * default (HTML) when omitted. `markdown` requires Azure DevOps Services or
+   * Azure DevOps Server 2022.1+; older on-prem servers reject it.
+   */
+  descriptionFormat?: 'html' | 'markdown';
   assignedTo?: string;
   areaPath?: string;
   iterationPath?: string;
   priority?: number;
+  /** Severity picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low". */
+  severity?: string;
   parentId?: number;
   additionalFields?: Record<string, string | number | boolean | null>;
 }
@@ -35,10 +43,18 @@ export interface CreateWorkItemOptions {
 export interface UpdateWorkItemOptions {
   title?: string;
   description?: string;
+  /**
+   * Format of the description / multi-line fields. Defaults to leaving the
+   * existing format unchanged when omitted. `markdown` requires Azure DevOps
+   * Services or Azure DevOps Server 2022.1+; older on-prem servers reject it.
+   */
+  descriptionFormat?: 'html' | 'markdown';
   assignedTo?: string;
   areaPath?: string;
   iterationPath?: string;
   priority?: number;
+  /** Severity picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low". */
+  severity?: string;
   state?: string;
   additionalFields?: Record<string, string | number | boolean | null>;
 }
