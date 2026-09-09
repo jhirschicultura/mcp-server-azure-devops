@@ -6,7 +6,7 @@ import {
   AzureDevOpsValidationError,
   AzureDevOpsPermissionError,
 } from '../shared/errors';
-import { defaultOrg, defaultProject } from '../utils/environment';
+import { apiVersion, defaultOrg, defaultProject } from '../utils/environment';
 import { resolveAzureDevOpsBaseUrls } from '../shared/azure-devops-url';
 
 interface AzureDevOpsApiErrorResponse {
@@ -97,7 +97,7 @@ export class WikiClient {
 
       const response = await axios.get(url, {
         params: {
-          'api-version': '7.1',
+          'api-version': apiVersion,
         },
         headers: {
           Authorization: authHeader,
@@ -177,7 +177,7 @@ export class WikiClient {
         },
         {
           params: {
-            'api-version': '7.1',
+            'api-version': apiVersion,
           },
           headers: {
             Authorization: authHeader,
@@ -250,7 +250,7 @@ export class WikiClient {
     // Construct the URL to get the wiki page
     const url = `${this.baseUrl}/${project}/_apis/wiki/wikis/${wikiId}/pages`;
     const params: Record<string, string> = {
-      'api-version': '7.1',
+      'api-version': apiVersion,
       path: normalizedPath,
     };
 
@@ -343,7 +343,7 @@ export class WikiClient {
     const url = `${this.baseUrl}/${project}/_apis/wiki/wikis/${wikiId}/pages`;
 
     const params: Record<string, string> = {
-      'api-version': '7.1',
+      'api-version': apiVersion,
       path: normalizedPath,
     };
 
@@ -475,7 +475,7 @@ export class WikiClient {
     // Construct the URL to update the wiki page
     const url = `${this.baseUrl}/${project}/_apis/wiki/wikis/${wikiId}/pages`;
     const params: Record<string, string> = {
-      'api-version': '7.1',
+      'api-version': apiVersion,
       path: normalizedPath,
     };
 
@@ -605,7 +605,7 @@ export class WikiClient {
           requestBody,
           {
             params: {
-              'api-version': '7.1',
+              'api-version': apiVersion,
             },
             headers: {
               Authorization: authHeader,
