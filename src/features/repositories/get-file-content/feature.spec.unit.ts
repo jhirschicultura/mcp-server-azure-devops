@@ -77,6 +77,11 @@ describe('getFileContent', () => {
     expect(result).toEqual({
       content: mockFileContent,
       isDirectory: false,
+      totalLines: 1,
+      startLine: 1,
+      endLine: 1,
+      truncated: false,
+      truncationNote: undefined,
     });
   });
 
@@ -128,6 +133,11 @@ describe('getFileContent', () => {
     expect(result).toEqual({
       content: mockFileContent,
       isDirectory: false,
+      totalLines: 1,
+      startLine: 1,
+      endLine: 1,
+      truncated: false,
+      truncationNote: undefined,
     });
   });
 
@@ -251,5 +261,68 @@ describe('getFileContent', () => {
 
     expect(result.isDirectory).toBe(true);
     expect(result.content).toBe(JSON.stringify(mockDirectoryItems, null, 2));
+  });
+  describe('trailing newline', () => {
+    const content = 'a\nb\nc\n';
+
+    beforeEach(() => {
+      mockGitApi.getItemContent = jest
+        .fn()
+        .mockResolvedValue(createReadableStream(content));
+    });
+
+    it('does not count the empty string after a final newline as a line', async () => {
+      const result = await getFileContent(
+        mockConnection,
+        mockProjectId,
+        mockRepositoryId,
+        mockFilePath,
+      );
+
+      expect(result).toMatchObject({
+        content,
+        totalLines: 3,
+        startLine: 1,
+        endLine: 3,
+        truncated: false,
+      });
+    });
+
+    it('keeps the final newline when the range reaches the end of the file', async () => {
+      const result = await getFileContent(
+        mockConnection,
+        mockProjectId,
+        mockRepositoryId,
+        mockFilePath,
+        undefined,
+        2,
+        10,
+      );
+
+      expect(result).toMatchObject({
+        content: 'b\nc\n',
+        startLine: 2,
+        endLine: 3,
+        truncated: false,
+      });
+    });
+
+    it('reports truncation when the range stops before the last line', async () => {
+      const result = await getFileContent(
+        mockConnection,
+        mockProjectId,
+        mockRepositoryId,
+        mockFilePath,
+        undefined,
+        1,
+        2,
+      );
+
+      expect(result).toMatchObject({
+        content: 'a\nb',
+        endLine: 2,
+        truncated: true,
+      });
+    });
   });
 });

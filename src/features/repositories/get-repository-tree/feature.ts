@@ -11,6 +11,9 @@ import {
   RepositoryTreeResponse,
 } from '../types';
 
+/** Maximum number of tree items returned per repository */
+const MAX_TREE_ITEMS = 500;
+
 /**
  * Get tree view of files/directories in a repository starting at an optional path
  */
@@ -55,6 +58,8 @@ export async function getRepositoryTree(
 
     const treeItems: RepositoryTreeItem[] = [];
     const stats = { directories: 0, files: 0 };
+    let totalItemsScanned = 0;
+    let truncated = false;
 
     for (const item of items) {
       const path = item.path || '';
@@ -69,6 +74,14 @@ export async function getRepositoryTree(
       if (options.depth && options.depth > 0 && level > options.depth) {
         continue;
       }
+
+      totalItemsScanned++;
+
+      if (treeItems.length >= MAX_TREE_ITEMS) {
+        truncated = true;
+        continue; // Keep counting totalItemsScanned but stop pushing
+      }
+
       const isFolder = !!item.isFolder;
       treeItems.push({
         name: relative.split('/').pop() || '',
@@ -80,10 +93,25 @@ export async function getRepositoryTree(
       else stats.files++;
     }
 
+    // Build truncation note when truncated
+    let truncationNote: string | undefined;
+    if (truncated) {
+      const topLevelDirs = treeItems
+        .filter((i) => i.isFolder && i.level === 1)
+        .map((i) => i.name);
+      truncationNote = `Tree truncated: showing ${treeItems.length} of ${totalItemsScanned} items (limit: ${MAX_TREE_ITEMS}). Use the "path" parameter to explore specific subdirectories, or set a lower "depth".`;
+      if (topLevelDirs.length > 0) {
+        truncationNote += ` Top-level directories: ${topLevelDirs.join(', ')}`;
+      }
+    }
+
     return {
       name: repository.name || options.repositoryId,
       tree: treeItems,
       stats,
+      totalItems: truncated ? totalItemsScanned : undefined,
+      truncated: truncated || undefined,
+      truncationNote,
     };
   } catch (error) {
     if (error instanceof AzureDevOpsError) {

@@ -1,6 +1,7 @@
 import {
   WorkItem,
   WorkItemReference,
+  CommentList,
 } from 'azure-devops-node-api/interfaces/WorkItemTrackingInterfaces';
 
 /**
@@ -13,6 +14,8 @@ export interface ListWorkItemsOptions {
   wiql?: string;
   top?: number;
   skip?: number;
+  /** Additional fields to include beyond the default four (Id, Title, State, AssignedTo). */
+  fields?: string[];
 }
 
 /**
@@ -34,6 +37,7 @@ export interface CreateWorkItemOptions {
   /** Severity picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low". */
   severity?: string;
   parentId?: number;
+  tags?: string[];
   additionalFields?: Record<string, string | number | boolean | null>;
 }
 
@@ -56,6 +60,9 @@ export interface UpdateWorkItemOptions {
   /** Severity picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low". */
   severity?: string;
   state?: string;
+  tags?: string[];
+  tagsToAdd?: string[];
+  tagsToRemove?: string[];
   additionalFields?: Record<string, string | number | boolean | null>;
 }
 
@@ -146,5 +153,18 @@ export interface DeleteWorkItemAttachmentOptions {
   attachmentId: string;
 }
 
-// Re-export WorkItem and WorkItemReference types for convenience
-export type { WorkItem, WorkItemReference };
+/**
+ * Options for getting work item comments
+ */
+export interface GetWorkItemCommentsOptions {
+  workItemId: number;
+  projectId?: string;
+  top?: number;
+  continuationToken?: string;
+  includeDeleted?: boolean;
+  expand?: 'none' | 'reactions' | 'renderedText' | 'all';
+  order?: 'asc' | 'desc';
+}
+
+// Re-export WorkItem, WorkItemReference and CommentList types for convenience
+export type { WorkItem, WorkItemReference, CommentList };

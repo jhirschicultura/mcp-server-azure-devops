@@ -121,6 +121,18 @@ export interface ListCommitsOptions {
   branchName: string;
   top?: number;
   skip?: number;
+  includeDiffs?: boolean;
+}
+
+/**
+ * File change information in a commit
+ */
+export interface CommitFileChange {
+  path: string;
+  changeType?: string;
+  patch?: string;
+  /** Indicates if the patch was truncated due to size limits */
+  truncated?: boolean;
 }
 
 /**
@@ -141,7 +153,7 @@ export interface CommitWithContent {
   };
   url?: string;
   parents?: string[];
-  files: Array<{ path: string; patch: string }>;
+  files: CommitFileChange[];
 }
 
 /**
@@ -149,6 +161,8 @@ export interface CommitWithContent {
  */
 export interface ListCommitsResponse {
   commits: CommitWithContent[];
+  /** Note about any truncation applied to patch content */
+  truncationNote?: string;
 }
 
 /**
@@ -172,6 +186,12 @@ export interface RepositoryTreeResponse {
     files: number;
   };
   error?: string;
+  /** Total items before truncation (only set when truncated) */
+  totalItems?: number;
+  /** Whether the tree was truncated due to item count limits */
+  truncated?: boolean;
+  /** Guidance on how to narrow results when truncated */
+  truncationNote?: string;
 }
 
 /**
@@ -179,6 +199,12 @@ export interface RepositoryTreeResponse {
  */
 export interface AllRepositoriesTreeResponse {
   repositories: RepositoryTreeResponse[];
+  /** Total repositories before cap (only set when truncated) */
+  totalRepositories?: number;
+  /** Whether the repository list was capped */
+  repositoriesTruncated?: boolean;
+  /** Guidance on narrowing results when truncated */
+  truncationNote?: string;
 }
 
 // Re-export GitRepository type for convenience

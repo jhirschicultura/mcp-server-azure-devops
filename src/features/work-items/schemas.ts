@@ -31,6 +31,15 @@ export const ListWorkItemsSchema = z.object({
   wiql: z.string().optional().describe('Work Item Query Language (WIQL) query'),
   top: z.number().optional().describe('Maximum number of work items to return'),
   skip: z.number().optional().describe('Number of work items to skip'),
+  fields: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'List of additional fields to include in the response beyond the defaults ' +
+        '(System.Id, System.Title, System.State, System.AssignedTo). ' +
+        'Use full field reference names, e.g. "Microsoft.VSTS.Scheduling.StoryPoints", ' +
+        '"System.IterationPath", "System.AreaPath".',
+    ),
 });
 
 /**
@@ -83,6 +92,7 @@ export const CreateWorkItemSchema = z.object({
     .number()
     .optional()
     .describe('The ID of the parent work item to create a relationship with'),
+  tags: z.array(z.string()).optional().describe('Tags to add to the work item'),
   additionalFields: z
     .record(z.string(), z.any())
     .optional()
@@ -132,6 +142,18 @@ export const UpdateWorkItemSchema = z.object({
       'The updated severity of the work item as the full picklist value, e.g. "1 - Critical", "2 - High", "3 - Medium", "4 - Low".',
     ),
   state: z.string().optional().describe('The updated state of the work item'),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe('Overwrite/set the complete set of tags'),
+  tagsToAdd: z
+    .array(z.string())
+    .optional()
+    .describe('List of tags to append to the work item'),
+  tagsToRemove: z
+    .array(z.string())
+    .optional()
+    .describe('List of tags to remove from the work item'),
   additionalFields: z
     .record(z.string(), z.any())
     .optional()
@@ -254,4 +276,30 @@ export const DeleteWorkItemAttachmentSchema = z.object({
     .describe(
       'The ID (GUID) of the attachment to delete. Can be obtained from the work item relations.',
     ),
+});
+
+/**
+ * Schema for getting work item comments
+ */
+export const GetWorkItemCommentsSchema = z.object({
+  workItemId: z.number().describe('The ID of the work item'),
+  projectId: z.string().optional().describe('The ID or name of the project'),
+  top: z.number().optional().describe('Maximum number of comments to return'),
+  continuationToken: z
+    .string()
+    .optional()
+    .describe('Continuation token to retrieve the next page of comments'),
+  includeDeleted: z.boolean().optional().describe('Include deleted comments'),
+  expand: z
+    .enum(['none', 'reactions', 'renderedText', 'all'])
+    .optional()
+    .default('all')
+    .describe(
+      'The level of detail to include in the comments response (Default: "all")',
+    ),
+  order: z
+    .enum(['asc', 'desc'])
+    .optional()
+    .default('asc')
+    .describe('The order in which to sort the comments (Default: "asc")'),
 });

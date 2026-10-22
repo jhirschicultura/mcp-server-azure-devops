@@ -38,6 +38,13 @@ export interface AddCommentResponse {
 }
 
 /**
+ * Response type for update comment operations
+ */
+export interface UpdateCommentResponse {
+  comment: CommentWithStringEnums;
+}
+
+/**
  * Options for creating a pull request
  */
 export interface CreatePullRequestOptions {
@@ -93,6 +100,8 @@ export interface AddPullRequestCommentOptions {
   // For file comments (new threads)
   filePath?: string;
   lineNumber?: number;
+  /** Last line of a multi-line thread (inclusive); defaults to lineNumber */
+  endLineNumber?: number;
   // Additional options
   status?:
     | 'active'
@@ -122,4 +131,30 @@ export interface UpdatePullRequestOptions {
   addTags?: string[];
   removeTags?: string[];
   additionalProperties?: Record<string, string | number | boolean>;
+}
+
+/**
+ * Options for updating a pull request thread status
+ */
+export interface UpdatePullRequestThreadStatusOptions {
+  projectId?: string;
+  organizationId?: string;
+  repositoryId?: string;
+  pullRequestId: number;
+  threadId: number;
+  status:
+    | 'active'
+    | 'fixed'
+    | 'wontFix'
+    | 'closed'
+    | 'pending'
+    | 'byDesign'
+    | 'unknown';
+}
+
+/**
+ * Response type for updating a pull request thread status
+ */
+export interface UpdatePullRequestThreadStatusResponse {
+  thread: CommentThreadWithStringEnums;
 }

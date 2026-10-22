@@ -9,6 +9,7 @@ import {
   AzureDevOpsAuthenticationError,
 } from '../../../shared/errors';
 import { resolveAzureDevOpsBaseUrls } from '../../../shared/azure-devops-url';
+import { apiVersion } from '../../../utils/environment';
 import {
   SearchCodeOptions,
   CodeSearchRequest,
@@ -16,6 +17,54 @@ import {
   CodeSearchResult,
 } from '../types';
 import { GitVersionType } from 'azure-devops-node-api/interfaces/GitInterfaces';
+
+// Content truncation constants
+const MAX_CONTENT_CHARACTERS = 20000;
+const MAX_LINE_LENGTH = 1000;
+
+/**
+ * Truncates content to stay within character limits
+ * First truncates long lines, then truncates total content if needed
+ *
+ * @param content The raw content string
+ * @returns Truncated content string
+ */
+function truncateFileContent(content: string): string {
+  const lines = content.split('\n');
+
+  // First pass: truncate individual lines that exceed MAX_LINE_LENGTH
+  const processedLines = lines.map((line) => {
+    if (line.length > MAX_LINE_LENGTH) {
+      return line.substring(0, MAX_LINE_LENGTH) + ' [truncated]';
+    }
+    return line;
+  });
+
+  // Join and check total length
+  let result = processedLines.join('\n');
+
+  // Second pass: if still over MAX_CONTENT_CHARACTERS, truncate from end
+  if (result.length > MAX_CONTENT_CHARACTERS) {
+    let currentLength = 0;
+    let lastValidIndex = 0;
+
+    for (let i = 0; i < processedLines.length; i++) {
+      const lineLength = processedLines[i].length + (i > 0 ? 1 : 0); // +1 for newline
+      if (currentLength + lineLength > MAX_CONTENT_CHARACTERS) {
+        break;
+      }
+      currentLength += lineLength;
+      lastValidIndex = i;
+    }
+
+    // Take only the lines that fit
+    const fittingLines = processedLines.slice(0, lastValidIndex + 1);
+    result = fittingLines.join('\n');
+    result += '\n[content truncated due to size limits]';
+  }
+
+  return result;
+}
 
 /**
  * Search for code in Azure DevOps repositories
@@ -66,7 +115,7 @@ export async function searchCode(
     });
 
     // Make the search API request with the project ID
-    const searchUrl = `${baseUrls.searchBaseUrl}/${projectId}/_apis/search/codesearchresults?api-version=7.1`;
+    const searchUrl = `${baseUrls.searchBaseUrl}/${projectId}/_apis/search/codesearchresults?api-version=${apiVersion}`;
 
     const searchResponse = await axios.post<CodeSearchResponse>(
       searchUrl,
@@ -216,7 +265,7 @@ async function enrichResultsWithContent(
             });
 
             // Use a promise to wait for the stream to finish
-            result.content = await new Promise<string>((resolve, reject) => {
+            const rawContent = await new Promise<string>((resolve, reject) => {
               contentStream.on('end', () => {
                 // Concatenate all chunks and convert to string
                 const buffer = Buffer.concat(chunks);
@@ -227,6 +276,9 @@ async function enrichResultsWithContent(
                 reject(err);
               });
             });
+
+            // Apply truncation to prevent token overflow
+            result.content = truncateFileContent(rawContent);
           }
         } catch (error) {
           // Log the error but don't fail the entire operation

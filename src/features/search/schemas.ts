@@ -50,9 +50,9 @@ export const SearchCodeSchema = z.object({
     .describe('Whether to include code snippets in results (default: true)'),
   includeContent: z
     .boolean()
-    .default(true)
+    .default(false)
     .describe(
-      'Whether to include full file content in results (default: true)',
+      'Whether to include full file content in results (default: false, returns snippets only)',
     ),
 });
 

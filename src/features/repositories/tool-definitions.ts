@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { toJsonSchema } from '../../shared/utils/to-json-schema';
 import { ToolDefinition } from '../../shared/types/tool-definition';
 import {
   GetRepositorySchema,
@@ -19,40 +19,40 @@ export const repositoriesTools: ToolDefinition[] = [
   {
     name: 'get_repository',
     description: 'Get details of a specific repository',
-    inputSchema: zodToJsonSchema(GetRepositorySchema),
+    inputSchema: toJsonSchema(GetRepositorySchema),
   },
   {
     name: 'get_repository_details',
     description:
       'Get detailed information about a repository including statistics and refs',
-    inputSchema: zodToJsonSchema(GetRepositoryDetailsSchema),
+    inputSchema: toJsonSchema(GetRepositoryDetailsSchema),
   },
   {
     name: 'list_repositories',
     description: 'List repositories in a project',
-    inputSchema: zodToJsonSchema(ListRepositoriesSchema),
+    inputSchema: toJsonSchema(ListRepositoriesSchema),
   },
   {
     name: 'get_file_content',
     description: 'Get content of a file or directory from a repository',
-    inputSchema: zodToJsonSchema(GetFileContentSchema),
+    inputSchema: toJsonSchema(GetFileContentSchema),
   },
   {
     name: 'get_all_repositories_tree',
     description:
-      'Displays a hierarchical tree view of files and directories across multiple Azure DevOps repositories within a project, based on their default branches',
-    inputSchema: zodToJsonSchema(GetAllRepositoriesTreeSchema),
+      'Displays a hierarchical tree view of files and directories across multiple Azure DevOps repositories within a project, based on their default branches. Returns at most 10 repositories and 500 items per repository (default depth: 3). Use repositoryPattern, depth, and pattern parameters to narrow results.',
+    inputSchema: toJsonSchema(GetAllRepositoriesTreeSchema),
   },
   {
     name: 'get_repository_tree',
     description:
-      'Displays a hierarchical tree view of files and directories within a single repository starting from an optional path',
-    inputSchema: zodToJsonSchema(GetRepositoryTreeSchema),
+      'Displays a hierarchical tree view of files and directories within a single repository starting from an optional path. Returns at most 500 items (default depth: 3). Use path to start from a subdirectory and depth to control levels (0 = unlimited).',
+    inputSchema: toJsonSchema(GetRepositoryTreeSchema),
   },
   {
     name: 'create_branch',
     description: 'Create a new branch from an existing one',
-    inputSchema: zodToJsonSchema(CreateBranchSchema),
+    inputSchema: toJsonSchema(CreateBranchSchema),
   },
   {
     name: 'create_commit',
@@ -95,12 +95,12 @@ export const repositoriesTools: ToolDefinition[] = [
       '}',
       '```',
     ].join('\n'),
-    inputSchema: zodToJsonSchema(CreateCommitSchema),
+    inputSchema: toJsonSchema(CreateCommitSchema),
   },
   {
     name: 'list_commits',
     description:
-      'List recent commits on a branch including file-level diff content for each commit',
-    inputSchema: zodToJsonSchema(ListCommitsSchema),
+      'List recent commits on a branch. By default returns only commit metadata and file paths (lightweight). Set includeDiffs=true to include full diff content (WARNING: can produce very large responses - use sparingly with small top values like 1-3).',
+    inputSchema: toJsonSchema(ListCommitsSchema),
   },
 ];

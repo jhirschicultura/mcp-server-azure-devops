@@ -439,6 +439,93 @@ describe('getAllRepositoriesTree', () => {
     expect(formatted).toMatchSnapshot();
   });
 
+  it('should cap repositories at MAX_REPOSITORIES (10)', async () => {
+    // Create 15 mock repos
+    const manyRepos = Array.from({ length: 15 }, (_, i) => ({
+      id: `repo${i}-id`,
+      name: `repo${i}`,
+      defaultBranch: 'refs/heads/main',
+    }));
+
+    mockGitApi.getRepositories = jest.fn().mockResolvedValue(manyRepos);
+    mockGitApi.getItems = jest.fn().mockResolvedValue([
+      { path: '/', gitObjectType: GitObjectType.Tree },
+      {
+        path: '/README.md',
+        isFolder: false,
+        gitObjectType: GitObjectType.Blob,
+      },
+    ]);
+
+    const result = await getAllRepositoriesTree(mockConnection, {
+      organizationId: 'testOrg',
+      projectId: 'testProject',
+      depth: 1,
+    });
+
+    expect(result.repositories.length).toBe(10);
+    expect(result.repositoriesTruncated).toBe(true);
+    expect(result.totalRepositories).toBe(15);
+    expect(result.truncationNote).toContain('10');
+    expect(result.truncationNote).toContain('15');
+  });
+
+  it('should truncate per-repo items at MAX_TREE_ITEMS (500)', async () => {
+    // Create a single repo with 600 items
+    const singleRepo = [
+      {
+        id: 'big-repo-id',
+        name: 'big-repo',
+        defaultBranch: 'refs/heads/main',
+      },
+    ];
+
+    const manyItems: any[] = [{ path: '/', gitObjectType: GitObjectType.Tree }];
+    for (let i = 0; i < 600; i++) {
+      manyItems.push({
+        path: `/file${i.toString().padStart(4, '0')}.ts`,
+        isFolder: false,
+        gitObjectType: GitObjectType.Blob,
+      });
+    }
+
+    mockGitApi.getRepositories = jest.fn().mockResolvedValue(singleRepo);
+    mockGitApi.getItems = jest.fn().mockResolvedValue(manyItems);
+
+    const result = await getAllRepositoriesTree(mockConnection, {
+      organizationId: 'testOrg',
+      projectId: 'testProject',
+      depth: 0,
+    });
+
+    const repo = result.repositories[0];
+    expect(repo.tree.length).toBe(500);
+    expect(repo.truncated).toBe(true);
+    expect(repo.totalItems).toBe(600);
+    expect(repo.truncationNote).toContain('500');
+    expect(repo.truncationNote).toContain('600');
+  });
+
+  it('should include truncation note in formatted output', () => {
+    const treeItems: RepositoryTreeItem[] = [
+      { name: 'src', path: '/src', isFolder: true, level: 1 },
+      { name: 'README.md', path: '/README.md', isFolder: false, level: 1 },
+    ];
+    const stats = { directories: 1, files: 1 };
+    const truncNote = 'Tree truncated: showing 2 of 100 items (limit: 500).';
+
+    const formatted = formatRepositoryTree(
+      'test-repo',
+      treeItems,
+      stats,
+      undefined,
+      truncNote,
+    );
+
+    expect(formatted).toContain(truncNote);
+    expect(formatted).toContain('1 directories, 1 files');
+  });
+
   it('should handle repository errors gracefully', async () => {
     // Arrange
     mockGitApi.getItems = jest.fn().mockRejectedValue(new Error('API error'));

@@ -4,7 +4,6 @@ import { getMe } from './feature';
 import {
   AzureDevOpsError,
   AzureDevOpsAuthenticationError,
-  AzureDevOpsValidationError,
 } from '@/shared/errors';
 
 // Mock axios
@@ -161,14 +160,60 @@ describe('getMe', () => {
     );
   });
 
-  it('should reject Azure DevOps Server URLs', async () => {
-    mockConnection = {
-      serverUrl: 'https://ado.local/tfs/DefaultCollection',
-    } as WebApi;
+  describe('Azure DevOps Server (on-premises)', () => {
+    function mockServerConnection(getConnectionData: jest.Mock): WebApi {
+      return {
+        serverUrl: 'https://ado.local/tfs/DefaultCollection',
+        getLocationsApi: jest.fn().mockResolvedValue({ getConnectionData }),
+      } as unknown as WebApi;
+    }
 
-    await expect(getMe(mockConnection)).rejects.toThrow(
-      AzureDevOpsValidationError,
-    );
+    it('should read the authenticated user from connectionData', async () => {
+      const getConnectionData = jest.fn().mockResolvedValue({
+        authenticatedUser: {
+          id: 'onprem-user-id',
+          providerDisplayName: 'On Prem User',
+          properties: {
+            Account: { $type: 'System.String', $value: 'DOMAIN\\onprem' },
+            Mail: { $type: 'System.String', $value: 'onprem@example.com' },
+          },
+        },
+      });
+
+      const result = await getMe(mockServerConnection(getConnectionData));
+
+      expect(getConnectionData).toHaveBeenCalled();
+      expect(mockAxios.get).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        id: 'onprem-user-id',
+        displayName: 'On Prem User',
+        email: 'onprem@example.com',
+      });
+    });
+
+    it('should fall back to the Account property when Mail is absent', async () => {
+      const getConnectionData = jest.fn().mockResolvedValue({
+        authenticatedUser: {
+          id: 'onprem-user-id',
+          providerDisplayName: 'On Prem User',
+          properties: {
+            Account: { $type: 'System.String', $value: 'DOMAIN\\onprem' },
+          },
+        },
+      });
+
+      const result = await getMe(mockServerConnection(getConnectionData));
+
+      expect(result.email).toBe('DOMAIN\\onprem');
+    });
+
+    it('should throw an authentication error when no user is returned', async () => {
+      const getConnectionData = jest.fn().mockResolvedValue({});
+
+      await expect(
+        getMe(mockServerConnection(getConnectionData)),
+      ).rejects.toThrow(AzureDevOpsAuthenticationError);
+    });
   });
 
   it('should wrap general errors in AzureDevOpsError', async () => {

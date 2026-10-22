@@ -95,6 +95,20 @@ export const GetFileContentSchema = z.object({
     .enum(['branch', 'commit', 'tag'])
     .optional()
     .describe('Type of version specified (branch, commit, or tag)'),
+  startLine: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('Starting line number (1-indexed). Defaults to 1.'),
+  endLine: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      'Ending line number (inclusive). If range exceeds 1000 lines or not provided, returns startLine + 999 lines.',
+    ),
 });
 
 /**
@@ -123,9 +137,9 @@ export const GetAllRepositoriesTreeSchema = z.object({
     .min(0)
     .max(10)
     .optional()
-    .default(0)
+    .default(3)
     .describe(
-      'Maximum depth to traverse within each repository (0 = unlimited)',
+      'Maximum depth to traverse within each repository (0 = unlimited, default: 3). Use lower values for broad overview, higher values or 0 for detailed exploration.',
     ),
   pattern: z
     .string()
@@ -159,8 +173,10 @@ export const GetRepositoryTreeSchema = z.object({
     .min(0)
     .max(10)
     .optional()
-    .default(0)
-    .describe('Maximum depth to traverse (0 = unlimited)'),
+    .default(3)
+    .describe(
+      'Maximum depth to traverse (0 = unlimited, default: 3). Use the path parameter to start deeper in the tree.',
+    ),
 });
 
 /**
@@ -344,4 +360,10 @@ export const ListCommitsSchema = z.object({
     .min(0)
     .optional()
     .describe('Number of commits to skip from the newest'),
+  includeDiffs: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Whether to include file diffs for each commit (default: false). When false, only commit metadata and file paths are returned.',
+    ),
 });

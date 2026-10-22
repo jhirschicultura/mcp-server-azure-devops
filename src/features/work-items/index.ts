@@ -12,6 +12,7 @@ export * from './create-work-item-attachment';
 export * from './get-work-item-attachment';
 export * from './delete-work-item-attachment';
 export * from './list-work-item-attachments';
+export * from './get-work-item-comments';
 
 // Export tool definitions
 export * from './tool-definitions';
@@ -37,6 +38,7 @@ import {
   GetWorkItemAttachmentSchema,
   DeleteWorkItemAttachmentSchema,
   ListWorkItemAttachmentsSchema,
+  GetWorkItemCommentsSchema,
   listWorkItems,
   getWorkItem,
   createWorkItem,
@@ -46,6 +48,7 @@ import {
   getWorkItemAttachment,
   deleteWorkItemAttachment,
   listWorkItemAttachments,
+  getWorkItemComments,
 } from './';
 
 // Define the response type based on observed usage
@@ -70,6 +73,7 @@ export const isWorkItemsRequest: RequestIdentifier = (
     'get_work_item_attachment',
     'delete_work_item_attachment',
     'list_work_item_attachments',
+    'get_work_item_comments',
   ].includes(toolName);
 };
 
@@ -101,6 +105,7 @@ export const handleWorkItemsRequest: RequestHandler = async (
         wiql: args.wiql,
         top: args.top,
         skip: args.skip,
+        fields: args.fields,
       });
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -122,6 +127,7 @@ export const handleWorkItemsRequest: RequestHandler = async (
           priority: args.priority,
           severity: args.severity,
           parentId: args.parentId,
+          tags: args.tags,
           additionalFields: args.additionalFields,
         },
       );
@@ -141,6 +147,9 @@ export const handleWorkItemsRequest: RequestHandler = async (
         priority: args.priority,
         severity: args.severity,
         state: args.state,
+        tags: args.tags,
+        tagsToAdd: args.tagsToAdd,
+        tagsToRemove: args.tagsToRemove,
         additionalFields: args.additionalFields,
       });
       return {
@@ -275,6 +284,21 @@ export const handleWorkItemsRequest: RequestHandler = async (
       const result = await deleteWorkItemAttachment(connection, {
         workItemId: args.workItemId,
         attachmentId: args.attachmentId,
+      });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    }
+    case 'get_work_item_comments': {
+      const args = GetWorkItemCommentsSchema.parse(request.params.arguments);
+      const result = await getWorkItemComments(connection, {
+        workItemId: args.workItemId,
+        projectId: args.projectId,
+        top: args.top,
+        continuationToken: args.continuationToken,
+        includeDeleted: args.includeDeleted,
+        expand: args.expand,
+        order: args.order,
       });
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],

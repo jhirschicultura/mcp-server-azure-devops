@@ -8,6 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import dotenv from 'dotenv';
 import { AzureDevOpsConfig } from './shared/types';
 import { AuthenticationMethod } from './shared/auth/auth-factory';
+import { loadToolsConfig, ToolsConfig } from './shared/config';
 
 /**
  * Normalize auth method string to a valid AuthenticationMethod enum value
@@ -49,24 +50,68 @@ export function normalizeAuthMethod(
 // Load environment variables
 dotenv.config();
 
+/**
+ * Format org URL for logs: host + pathname only (no secrets).
+ */
+function formatOrgUrlForLog(organizationUrl: string): string {
+  try {
+    const url = new URL(organizationUrl);
+    const path = url.pathname.replace(/\/$/, '');
+    return `${url.host}${path}` || url.host;
+  } catch {
+    return organizationUrl ? '(invalid org URL)' : '(not set)';
+  }
+}
+
+/**
+ * Describe how AZURE_DEVOPS_DEFAULT_PROJECT was provided.
+ */
+function describeDefaultProject(envValue: string | undefined): string {
+  if (envValue === undefined) {
+    return 'omitted';
+  }
+  if (envValue === '') {
+    return 'empty string';
+  }
+  return `set (${envValue})`;
+}
+
+function isDebugLoggingEnabled(): boolean {
+  const level = (
+    process.env.AZURE_DEVOPS_LOG_LEVEL ||
+    process.env.LOG_LEVEL ||
+    ''
+  ).toLowerCase();
+  // DEBUG=true is kept as an alias for this fork's original debug gate.
+  return level === 'debug' || process.env.DEBUG === 'true';
+}
+
 function getConfig(): AzureDevOpsConfig {
-  // Debug log the environment variables to help diagnose issues.
-  // Gated behind DEBUG=true to avoid leaking configuration to logs on
-  // every startup. The PAT value itself is never printed.
-  if (process.env.DEBUG === 'true') {
-    process.stderr.write(`DEBUG - Environment variables in getConfig():
-  AZURE_DEVOPS_ORG_URL: ${process.env.AZURE_DEVOPS_ORG_URL || 'NOT SET'}
-  AZURE_DEVOPS_AUTH_METHOD: ${process.env.AZURE_DEVOPS_AUTH_METHOD || 'NOT SET'}
-  AZURE_DEVOPS_PAT: ${process.env.AZURE_DEVOPS_PAT ? 'SET (hidden)' : 'NOT SET'}
-  AZURE_DEVOPS_DEFAULT_PROJECT: ${process.env.AZURE_DEVOPS_DEFAULT_PROJECT || 'NOT SET'}
-  AZURE_DEVOPS_API_VERSION: ${process.env.AZURE_DEVOPS_API_VERSION || 'NOT SET'}
-  NODE_ENV: ${process.env.NODE_ENV || 'NOT SET'}
+  const organizationUrl = process.env.AZURE_DEVOPS_ORG_URL || '';
+  const orgDisplay = formatOrgUrlForLog(organizationUrl);
+  const authMethod = normalizeAuthMethod(process.env.AZURE_DEVOPS_AUTH_METHOD);
+  const apiVersionEnv = process.env.AZURE_DEVOPS_API_VERSION;
+  const patPresent = Boolean(process.env.AZURE_DEVOPS_PAT);
+
+  // Always-on one-liner (stdio-safe)
+  process.stderr.write(
+    `Azure DevOps MCP Server starting (org=${orgDisplay})\n`,
+  );
+
+  // Verbose dump only when debug logging is enabled
+  if (isDebugLoggingEnabled()) {
+    process.stderr.write(`DEBUG - Config:
+  org: ${orgDisplay}
+  authMethod: ${authMethod}
+  patPresent: ${patPresent}
+  defaultProject: ${describeDefaultProject(process.env.AZURE_DEVOPS_DEFAULT_PROJECT)}
+  apiVersion: ${apiVersionEnv ? `set (${apiVersionEnv})` : 'default'}
 \n`);
   }
 
   return {
-    organizationUrl: process.env.AZURE_DEVOPS_ORG_URL || '',
-    authMethod: normalizeAuthMethod(process.env.AZURE_DEVOPS_AUTH_METHOD),
+    organizationUrl,
+    authMethod,
     personalAccessToken: process.env.AZURE_DEVOPS_PAT,
     defaultProject: process.env.AZURE_DEVOPS_DEFAULT_PROJECT,
     apiVersion: process.env.AZURE_DEVOPS_API_VERSION,
@@ -75,8 +120,19 @@ function getConfig(): AzureDevOpsConfig {
 
 async function main() {
   try {
+    // Load tools configuration
+    let toolsConfig: ToolsConfig | undefined;
+    try {
+      toolsConfig = loadToolsConfig();
+    } catch (error) {
+      process.stderr.write(
+        `ERROR: Failed to load tools config: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      process.exit(1);
+    }
+
     // Create the server with configuration
-    const server = createAzureDevOpsServer(getConfig());
+    const server = createAzureDevOpsServer(getConfig(), toolsConfig);
 
     // Connect to stdio transport
     const transport = new StdioServerTransport();

@@ -16,6 +16,11 @@ import {
   GitRepository,
 } from '../types';
 
+/** Maximum number of repositories to process */
+const MAX_REPOSITORIES = 10;
+/** Maximum number of tree items returned per repository */
+const MAX_TREE_ITEMS = 500;
+
 /**
  * Get tree view of files/directories across multiple repositories
  *
@@ -39,6 +44,14 @@ export async function getAllRepositoriesTree(
       repositories = repositories.filter((repo) =>
         minimatch(repo.name || '', options.repositoryPattern || '*'),
       );
+    }
+
+    // Cap the number of repositories processed
+    const totalRepositories = repositories.length;
+    let repositoriesTruncated = false;
+    if (repositories.length > MAX_REPOSITORIES) {
+      repositories = repositories.slice(0, MAX_REPOSITORIES);
+      repositoriesTruncated = true;
     }
 
     // Initialize results array
@@ -70,6 +83,11 @@ export async function getAllRepositoriesTree(
         // Determine the recursion level and processing approach
         const depth = options.depth !== undefined ? options.depth : 0; // Default to 0 (max depth)
 
+        let itemsTruncationResult: {
+          totalItems: number;
+          truncated: boolean;
+        };
+
         if (depth === 0) {
           // For max depth (0), use server-side recursion for better performance
           const allItems = await gitApi.getItems(
@@ -94,7 +112,7 @@ export async function getAllRepositoriesTree(
           );
 
           // Process all items at once (they're already retrieved recursively)
-          processItemsNonRecursive(
+          itemsTruncationResult = processItemsNonRecursive(
             itemsToProcess,
             treeItems,
             stats,
@@ -125,7 +143,7 @@ export async function getAllRepositoriesTree(
           );
 
           // Process the root items and their children (up to specified depth)
-          await processItems(
+          itemsTruncationResult = await processItems(
             gitApi,
             repo.id || '',
             options.projectId,
@@ -139,11 +157,28 @@ export async function getAllRepositoriesTree(
           );
         }
 
+        // Build per-repo truncation note when truncated
+        let repoTruncationNote: string | undefined;
+        if (itemsTruncationResult.truncated) {
+          const topLevelDirs = treeItems
+            .filter((i) => i.isFolder && i.level === 1)
+            .map((i) => i.name);
+          repoTruncationNote = `Tree truncated: showing ${treeItems.length} of ${itemsTruncationResult.totalItems} items (limit: ${MAX_TREE_ITEMS}). Use the "path" parameter with get_repository_tree to explore specific subdirectories, or set a lower "depth".`;
+          if (topLevelDirs.length > 0) {
+            repoTruncationNote += ` Top-level directories: ${topLevelDirs.join(', ')}`;
+          }
+        }
+
         // Add repository tree to results
         results.push({
           name: repo.name || 'Unknown',
           tree: treeItems,
           stats,
+          totalItems: itemsTruncationResult.truncated
+            ? itemsTruncationResult.totalItems
+            : undefined,
+          truncated: itemsTruncationResult.truncated || undefined,
+          truncationNote: repoTruncationNote,
         });
       } catch (repoError) {
         // Handle errors for individual repositories
@@ -156,7 +191,18 @@ export async function getAllRepositoriesTree(
       }
     }
 
-    return { repositories: results };
+    // Build top-level truncation note when repos were capped
+    let topLevelTruncationNote: string | undefined;
+    if (repositoriesTruncated) {
+      topLevelTruncationNote = `Repository list truncated: showing ${MAX_REPOSITORIES} of ${totalRepositories} repositories (limit: ${MAX_REPOSITORIES}). Use "repositoryPattern" to select specific repositories.`;
+    }
+
+    return {
+      repositories: results,
+      totalRepositories: repositoriesTruncated ? totalRepositories : undefined,
+      repositoriesTruncated: repositoriesTruncated || undefined,
+      truncationNote: topLevelTruncationNote,
+    };
   } catch (error) {
     if (error instanceof AzureDevOpsError) {
       throw error;
@@ -175,7 +221,8 @@ function processItemsNonRecursive(
   result: RepositoryTreeItem[],
   stats: { directories: number; files: number },
   pattern?: string,
-): void {
+  maxItems: number = MAX_TREE_ITEMS,
+): { totalItems: number; truncated: boolean } {
   // Sort items (folders first, then by path)
   const sortedItems = [...items].sort((a, b) => {
     if (a.isFolder === b.isFolder) {
@@ -183,6 +230,9 @@ function processItemsNonRecursive(
     }
     return a.isFolder ? -1 : 1;
   });
+
+  let totalItems = 0;
+  let truncated = false;
 
   for (const item of sortedItems) {
     const name = item.path?.split('/').pop() || '';
@@ -195,17 +245,19 @@ function processItemsNonRecursive(
     }
 
     // Calculate level from path segments
-    // Remove leading '/' then count segments
-    // For paths like:
-    // /README.md -> ["README.md"] -> length 1 -> level 1
-    // /src/index.ts -> ["src", "index.ts"] -> length 2 -> level 2
-    // /src/utils/helper.ts -> ["src", "utils", "helper.ts"] -> length 3 -> level 3
     const pathSegments = path.replace(/^\//, '').split('/');
     const level = pathSegments.length;
 
     // Filter files based on pattern (if specified)
     if (!isFolder && pattern && !minimatch(name, pattern)) {
       continue;
+    }
+
+    totalItems++;
+
+    if (result.length >= maxItems) {
+      truncated = true;
+      continue; // Keep counting totalItems but stop pushing
     }
 
     // Add item to results
@@ -223,6 +275,8 @@ function processItemsNonRecursive(
       stats.files++;
     }
   }
+
+  return { totalItems, truncated };
 }
 
 /**
@@ -239,7 +293,8 @@ async function processItems(
   currentDepth: number,
   maxDepth: number,
   pattern?: string,
-): Promise<void> {
+  maxItems: number = MAX_TREE_ITEMS,
+): Promise<{ totalItems: number; truncated: boolean }> {
   // Sort items (directories first, then files)
   const sortedItems = [...items].sort((a, b) => {
     if (a.isFolder === b.isFolder) {
@@ -248,6 +303,9 @@ async function processItems(
     return a.isFolder ? -1 : 1;
   });
 
+  let totalItems = 0;
+  let truncated = false;
+
   for (const item of sortedItems) {
     const name = item.path?.split('/').pop() || '';
     const path = item.path || '';
@@ -255,6 +313,14 @@ async function processItems(
 
     // Filter files based on pattern (if specified)
     if (!isFolder && pattern && !minimatch(name, pattern)) {
+      continue;
+    }
+
+    totalItems++;
+
+    if (result.length >= maxItems) {
+      truncated = true;
+      // Don't recurse into folders when already truncated (avoid wasted API calls)
       continue;
     }
 
@@ -273,8 +339,8 @@ async function processItems(
       stats.files++;
     }
 
-    // Recursively process folders if not yet at max depth
-    if (isFolder && currentDepth < maxDepth) {
+    // Recursively process folders if not yet at max depth and not truncated
+    if (isFolder && currentDepth < maxDepth && result.length < maxItems) {
       try {
         const childItems = await gitApi.getItems(
           repoId,
@@ -298,7 +364,7 @@ async function processItems(
         );
 
         // Process child items
-        await processItems(
+        const childResult = await processItems(
           gitApi,
           repoId,
           projectId,
@@ -309,13 +375,20 @@ async function processItems(
           currentDepth + 1,
           maxDepth,
           pattern,
+          maxItems,
         );
+        totalItems += childResult.totalItems;
+        if (childResult.truncated) {
+          truncated = true;
+        }
       } catch (error) {
         // Ignore errors in child items and continue with siblings
         console.error(`Error processing folder ${path}: ${error}`);
       }
     }
   }
+
+  return { totalItems, truncated };
 }
 
 /**
@@ -331,6 +404,7 @@ export function formatRepositoryTree(
   items: RepositoryTreeItem[],
   stats: { directories: number; files: number },
   error?: string,
+  truncationNote?: string,
 ): string {
   let output = `${repoName}/\n`;
 
@@ -362,6 +436,11 @@ export function formatRepositoryTree(
 
   // Add summary line
   output += `${stats.directories} directories, ${stats.files} files\n`;
+
+  // Add truncation note if present
+  if (truncationNote) {
+    output += `[${truncationNote}]\n`;
+  }
 
   return output;
 }

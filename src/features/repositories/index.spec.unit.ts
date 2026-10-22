@@ -212,6 +212,8 @@ describe('Repositories Request Handlers', () => {
         'repo1',
         '/path/to/file',
         { versionType: GitVersionType.Branch, version: 'main' },
+        undefined,
+        undefined,
       );
     });
 
@@ -255,6 +257,7 @@ describe('Repositories Request Handlers', () => {
         'repo1',
         expect.any(Array),
         expect.any(Object),
+        undefined,
         undefined,
       );
     });

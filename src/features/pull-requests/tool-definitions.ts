@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { toJsonSchema } from '../../shared/utils/to-json-schema';
 import { ToolDefinition } from '../../shared/types/tool-definition';
 import {
   CreatePullRequestSchema,
@@ -7,8 +7,10 @@ import {
   GetPullRequestCommentsSchema,
   AddPullRequestCommentSchema,
   UpdatePullRequestSchema,
+  UpdatePullRequestCommentSchema,
   GetPullRequestChangesSchema,
   GetPullRequestChecksSchema,
+  UpdatePullRequestThreadStatusSchema,
 } from './schemas';
 
 /**
@@ -19,41 +21,41 @@ export const pullRequestsTools: ToolDefinition[] = [
     name: 'create_pull_request',
     description:
       'Create a new pull request, including reviewers, linked work items, and optional tags',
-    inputSchema: zodToJsonSchema(CreatePullRequestSchema),
+    inputSchema: toJsonSchema(CreatePullRequestSchema),
   },
   {
     name: 'get_pull_request',
     description:
       'Get a pull request by ID (no repositoryId required; best for Azure DevOps Server where PR IDs are project-scoped)',
-    inputSchema: zodToJsonSchema(GetPullRequestSchema),
+    inputSchema: toJsonSchema(GetPullRequestSchema),
   },
   {
     name: 'list_pull_requests',
     description: 'List pull requests in a repository',
-    inputSchema: zodToJsonSchema(ListPullRequestsSchema),
+    inputSchema: toJsonSchema(ListPullRequestsSchema),
   },
   {
     name: 'get_pull_request_comments',
     description: 'Get comments from a specific pull request',
-    inputSchema: zodToJsonSchema(GetPullRequestCommentsSchema),
+    inputSchema: toJsonSchema(GetPullRequestCommentsSchema),
   },
   {
     name: 'add_pull_request_comment',
     description:
       'Add a comment to a pull request (repositoryId optional; derived from pullRequestId when omitted)',
-    inputSchema: zodToJsonSchema(AddPullRequestCommentSchema),
+    inputSchema: toJsonSchema(AddPullRequestCommentSchema),
   },
   {
     name: 'update_pull_request',
     description:
       'Update an existing pull request with new properties, manage reviewers and work items, and add or remove tags',
-    inputSchema: zodToJsonSchema(UpdatePullRequestSchema),
+    inputSchema: toJsonSchema(UpdatePullRequestSchema),
   },
   {
     name: 'get_pull_request_changes',
     description:
-      'Get the files changed in a pull request, their unified diffs, source/target branch names, and the status of policy evaluations',
-    inputSchema: zodToJsonSchema(GetPullRequestChangesSchema),
+      'Get the files changed in a pull request, source/target branch names, and policy evaluation status. By default returns only file paths (lightweight). Set includeDiffs=true to include unified diffs (WARNING: can produce very large responses for PRs with many changed files).',
+    inputSchema: toJsonSchema(GetPullRequestChangesSchema),
   },
   {
     name: 'get_pull_request_checks',
@@ -62,6 +64,18 @@ export const pullRequestsTools: ToolDefinition[] = [
       '- Surfaces pipeline and run identifiers so you can jump straight to the blocking validation.',
       '- Pair with pipeline tools (e.g., get_pipeline_run, pipeline_timeline) to inspect failures in depth.',
     ].join('\n'),
-    inputSchema: zodToJsonSchema(GetPullRequestChecksSchema),
+    inputSchema: toJsonSchema(GetPullRequestChecksSchema),
+  },
+  {
+    name: 'update_pull_request_thread_status',
+    description:
+      'Update the status of a comment thread in a pull request (repositoryId optional; derived from pullRequestId when omitted)',
+    inputSchema: toJsonSchema(UpdatePullRequestThreadStatusSchema),
+  },
+  {
+    name: 'update_pull_request_comment',
+    description:
+      'Update an existing comment on a pull request thread. Use this to modify a previously posted comment, such as updating an "in progress" status with the final review results.',
+    inputSchema: toJsonSchema(UpdatePullRequestCommentSchema),
   },
 ];
