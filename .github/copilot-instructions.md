@@ -44,7 +44,7 @@ npm run format     # Takes ~3 seconds. Runs Prettier for code formatting.
 ```bash
 # IMPORTANT: Always configure environment first using `.env` file (copy from `.env.example`)
 
-npm run dev        # Development mode with auto-restart using ts-node-dev
+npm run dev        # Development mode with auto-restart using tsx watch
 npm run start      # Production mode - runs compiled version from `dist/index.js`
 npm run inspector  # Debug mode with MCP Inspector tool
 ```
@@ -177,7 +177,7 @@ When updating existing features:
 
 **Development tools:**
 - `jest` - Testing framework (with separate configs for unit/int/e2e tests)
-- `ts-node-dev` - Development server with auto-restart
+- `tsx` - Development server with auto-restart (`tsx watch`)
 - `eslint` + `prettier` - Code quality and formatting
 - `husky` - Git hooks for commit validation
 
