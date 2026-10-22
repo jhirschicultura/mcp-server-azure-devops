@@ -212,6 +212,8 @@ describe('Repositories Request Handlers', () => {
         'repo1',
         '/path/to/file',
         { versionType: GitVersionType.Branch, version: 'main' },
+        undefined,
+        undefined,
       );
     });
 

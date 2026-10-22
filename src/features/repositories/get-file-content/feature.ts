@@ -14,6 +14,88 @@ import { detectVssErrorEnvelope } from '../../../utils/vss-error-envelope';
 export interface FileContentResponse {
   content: string;
   isDirectory: boolean;
+  totalLines?: number;
+  startLine?: number;
+  endLine?: number;
+  truncated?: boolean;
+  /** Note about content truncation (e.g., lines truncated, content capped) */
+  truncationNote?: string;
+}
+
+const MAX_LINES = 1000;
+const MAX_CHARACTERS = 20000;
+const MAX_LINE_LENGTH = 1000;
+
+/**
+ * Truncates content to stay within character limits
+ * First truncates long lines, then truncates total content if needed
+ *
+ * @param lines Array of lines to process
+ * @param startLine 1-indexed start line
+ * @param endLine 1-indexed end line
+ * @returns Processed content with truncation info
+ */
+function truncateContent(
+  lines: string[],
+  startLine: number,
+  endLine: number,
+): {
+  content: string;
+  actualEndLine: number;
+  truncationNote: string | undefined;
+} {
+  const notes: string[] = [];
+  let truncatedLinesCount = 0;
+
+  // First pass: truncate individual lines that exceed MAX_LINE_LENGTH
+  const processedLines = lines.map((line) => {
+    if (line.length > MAX_LINE_LENGTH) {
+      truncatedLinesCount++;
+      return line.substring(0, MAX_LINE_LENGTH) + ' [truncated]';
+    }
+    return line;
+  });
+
+  if (truncatedLinesCount > 0) {
+    notes.push(
+      `${truncatedLinesCount} line(s) exceeded ${MAX_LINE_LENGTH} characters and were truncated`,
+    );
+  }
+
+  // Join and check total length
+  let content = processedLines.join('\n');
+  let actualEndLine = endLine;
+
+  // Second pass: if still over MAX_CHARACTERS, remove lines from the end
+  if (content.length > MAX_CHARACTERS) {
+    let currentLength = 0;
+    let lastValidIndex = 0;
+
+    for (let i = 0; i < processedLines.length; i++) {
+      const lineLength = processedLines[i].length + (i > 0 ? 1 : 0); // +1 for newline
+      if (currentLength + lineLength > MAX_CHARACTERS) {
+        break;
+      }
+      currentLength += lineLength;
+      lastValidIndex = i;
+    }
+
+    // Take only the lines that fit
+    const fittingLines = processedLines.slice(0, lastValidIndex + 1);
+    content = fittingLines.join('\n');
+    actualEndLine = startLine + lastValidIndex;
+
+    const removedLines = processedLines.length - (lastValidIndex + 1);
+    notes.push(
+      `Content exceeded ${MAX_CHARACTERS} characters; truncated ${removedLines} line(s) from end`,
+    );
+  }
+
+  return {
+    content,
+    actualEndLine,
+    truncationNote: notes.length > 0 ? notes.join('. ') : undefined,
+  };
 }
 
 /**
@@ -24,6 +106,8 @@ export interface FileContentResponse {
  * @param repositoryId - Repository ID or name
  * @param path - Path to file or directory
  * @param versionDescriptor - Optional version descriptor for retrieving file at specific commit/branch/tag
+ * @param startLine - Starting line number (1-indexed). Defaults to 1.
+ * @param endLine - Ending line number (inclusive). If range exceeds 1000 or not provided, returns startLine + 999.
  * @returns Content of the file or list of items if path is a directory
  */
 export async function getFileContent(
@@ -32,6 +116,8 @@ export async function getFileContent(
   repositoryId: string,
   path: string = '/',
   versionDescriptor?: { versionType: GitVersionType; version: string },
+  startLine?: number,
+  endLine?: number,
 ): Promise<FileContentResponse> {
   try {
     const gitApi = await connection.getGitApi();
@@ -123,9 +209,47 @@ export async function getFileContent(
             );
           }
 
+          // Apply line-based pagination
+          const lines = buffer.toString('utf8').split('\n');
+          const totalLines = lines.length;
+
+          // Calculate effective start and end lines
+          const effectiveStartLine = startLine ?? 1;
+          let effectiveEndLine = endLine ?? effectiveStartLine + MAX_LINES - 1;
+
+          // Cap range at MAX_LINES
+          if (effectiveEndLine - effectiveStartLine + 1 > MAX_LINES) {
+            effectiveEndLine = effectiveStartLine + MAX_LINES - 1;
+          }
+
+          // Clamp to actual file bounds
+          const clampedStartLine = Math.max(1, effectiveStartLine);
+          const clampedEndLine = Math.min(totalLines, effectiveEndLine);
+
+          // Extract the requested lines (convert 1-indexed to 0-indexed)
+          const selectedLines = lines.slice(
+            clampedStartLine - 1,
+            clampedEndLine,
+          );
+
+          // Apply character-based truncation to prevent token overflow
+          const { content, actualEndLine, truncationNote } = truncateContent(
+            selectedLines,
+            clampedStartLine,
+            clampedEndLine,
+          );
+
+          // Determine if content was truncated (either by line limit or character limit)
+          const truncated = actualEndLine < totalLines;
+
           return {
-            content: buffer.toString('utf8'),
+            content,
             isDirectory: false,
+            totalLines,
+            startLine: clampedStartLine,
+            endLine: actualEndLine,
+            truncated,
+            truncationNote,
           };
         }
 
