@@ -4,13 +4,59 @@ import {
   CommentThreadStatus,
   CommentType,
   GitPullRequestCommentThread,
+  GitVersionType,
 } from 'azure-devops-node-api/interfaces/GitInterfaces';
+import { IGitApi } from 'azure-devops-node-api/GitApi';
 import { AzureDevOpsError } from '../../../shared/errors';
 import { AddPullRequestCommentOptions, AddCommentResponse } from '../types';
 import {
   transformCommentThreadStatus,
   transformCommentType,
 } from '../../../shared/enums';
+
+/**
+ * Resolve the end offset that covers the whole of `line` in the file as it
+ * exists at the PR's source commit.
+ *
+ * A zero-width anchor (offset 1 to 1) makes "Apply suggestion" insert text
+ * before the line instead of replacing it (issue #356); the web UI anchors
+ * line threads to `line length + 1`. Falls back to offset 1 on any failure so
+ * posting the comment never fails because of this lookup.
+ */
+async function resolveLineEndOffset(
+  gitApi: IGitApi,
+  project: string | undefined,
+  repositoryId: string,
+  pullRequestId: number,
+  filePath: string,
+  line: number,
+): Promise<number> {
+  try {
+    const pr = await gitApi.getPullRequestById(pullRequestId, project);
+    const commitId = pr?.lastMergeSourceCommit?.commitId;
+    if (!commitId) {
+      return 1;
+    }
+
+    const item = await gitApi.getItem(
+      repositoryId,
+      filePath,
+      project,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { version: commitId, versionType: GitVersionType.Commit },
+      true,
+    );
+    const lines = item?.content?.split(/\r?\n/);
+    const text = lines?.[line - 1];
+    return text === undefined ? 1 : text.length + 1;
+  } catch {
+    return 1;
+  }
+}
 
 /**
  * Add a comment to a pull request
@@ -111,21 +157,35 @@ export async function addPullRequestComment(
 
       // Add file context if specified (file comment)
       if (options.filePath) {
+        const endLine = options.endLineNumber ?? options.lineNumber;
+        const endOffset =
+          options.lineNumber && endLine
+            ? await resolveLineEndOffset(
+                gitApi,
+                project,
+                resolvedRepositoryId,
+                pullRequestId,
+                options.filePath,
+                endLine,
+              )
+            : 1;
+
         thread.threadContext = {
           filePath: options.filePath,
           // Only add line information if provided
           rightFileStart: options.lineNumber
             ? {
                 line: options.lineNumber,
-                offset: 1, // Default to start of line
+                offset: 1, // Start of the first line
               }
             : undefined,
-          rightFileEnd: options.lineNumber
-            ? {
-                line: options.lineNumber,
-                offset: 1, // Default to start of line
-              }
-            : undefined,
+          rightFileEnd:
+            options.lineNumber && endLine
+              ? {
+                  line: endLine,
+                  offset: endOffset,
+                }
+              : undefined,
         };
       }
 

@@ -5,6 +5,7 @@ import {
   CommentThreadStatus,
   CommentType,
   GitPullRequestCommentThread,
+  GitVersionType,
 } from 'azure-devops-node-api/interfaces/GitInterfaces';
 
 describe('addPullRequestComment', () => {
@@ -249,6 +250,116 @@ describe('addPullRequestComment', () => {
       projectId,
     );
     expect(mockGitApi.createComment).not.toHaveBeenCalled();
+  });
+
+  describe('line anchoring (issue #356)', () => {
+    const fileContent = 'line one\r\nsecond line here\nthird';
+
+    function setup(getItem: jest.Mock) {
+      const createThread = jest.fn().mockResolvedValue({
+        id: 1,
+        status: CommentThreadStatus.Active,
+        comments: [{ id: 1, content: 'c', commentType: CommentType.Text }],
+      });
+      const mockGitApi = {
+        createComment: jest.fn(),
+        createThread,
+        getItem,
+        getPullRequestById: jest.fn().mockResolvedValue({
+          repository: { id: 'repo-guid' },
+          lastMergeSourceCommit: { commitId: 'abc123' },
+        }),
+      };
+      const connection: any = {
+        getGitApi: jest.fn().mockResolvedValue(mockGitApi),
+      };
+      return { connection, createThread, mockGitApi };
+    }
+
+    test('anchors the thread across the whole line so suggestions replace it', async () => {
+      const getItem = jest.fn().mockResolvedValue({ content: fileContent });
+      const { connection, createThread, mockGitApi } = setup(getItem);
+
+      await addPullRequestComment(connection, 'p', 'r', 5, {
+        projectId: 'p',
+        repositoryId: 'r',
+        pullRequestId: 5,
+        content: '```suggestion\nnew\n```',
+        filePath: '/src/app.ts',
+        lineNumber: 2,
+        status: 'active',
+      });
+
+      expect(mockGitApi.getPullRequestById).toHaveBeenCalledWith(5, 'p');
+      expect(getItem).toHaveBeenCalledWith(
+        'r',
+        '/src/app.ts',
+        'p',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { version: 'abc123', versionType: GitVersionType.Commit },
+        true,
+      );
+      const thread = createThread.mock.calls[0][0];
+      expect(thread.threadContext.rightFileStart).toEqual({
+        line: 2,
+        offset: 1,
+      });
+      expect(thread.threadContext.rightFileEnd).toEqual({
+        line: 2,
+        offset: 'second line here'.length + 1,
+      });
+    });
+
+    test('spans multiple lines when endLineNumber is provided', async () => {
+      const getItem = jest.fn().mockResolvedValue({ content: fileContent });
+      const { connection, createThread } = setup(getItem);
+
+      await addPullRequestComment(connection, 'p', 'r', 5, {
+        projectId: 'p',
+        repositoryId: 'r',
+        pullRequestId: 5,
+        content: 'c',
+        filePath: '/src/app.ts',
+        lineNumber: 1,
+        endLineNumber: 3,
+        status: 'active',
+      });
+
+      const thread = createThread.mock.calls[0][0];
+      expect(thread.threadContext.rightFileStart).toEqual({
+        line: 1,
+        offset: 1,
+      });
+      expect(thread.threadContext.rightFileEnd).toEqual({
+        line: 3,
+        offset: 'third'.length + 1,
+      });
+    });
+
+    test('falls back to a start-of-line anchor when the file cannot be read', async () => {
+      const getItem = jest.fn().mockRejectedValue(new Error('not found'));
+      const { connection, createThread } = setup(getItem);
+
+      await addPullRequestComment(connection, 'p', 'r', 5, {
+        projectId: 'p',
+        repositoryId: 'r',
+        pullRequestId: 5,
+        content: 'c',
+        filePath: '/src/app.ts',
+        lineNumber: 2,
+        status: 'active',
+      });
+
+      const thread = createThread.mock.calls[0][0];
+      expect(thread.threadContext.rightFileEnd).toEqual({
+        line: 2,
+        offset: 1,
+      });
+    });
   });
 
   test('should handle error when API call fails', async () => {

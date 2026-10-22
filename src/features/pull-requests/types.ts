@@ -100,6 +100,8 @@ export interface AddPullRequestCommentOptions {
   // For file comments (new threads)
   filePath?: string;
   lineNumber?: number;
+  /** Last line of a multi-line thread (inclusive); defaults to lineNumber */
+  endLineNumber?: number;
   // Additional options
   status?:
     | 'active'
