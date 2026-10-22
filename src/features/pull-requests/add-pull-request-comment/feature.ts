@@ -121,33 +121,20 @@ export async function addPullRequestComment(
     }
     // Case 2: Create new thread with comment
     else {
-      // Map status string to CommentThreadStatus enum
-      let threadStatus: CommentThreadStatus | undefined;
-      if (options.status) {
-        switch (options.status) {
-          case 'active':
-            threadStatus = CommentThreadStatus.Active;
-            break;
-          case 'fixed':
-            threadStatus = CommentThreadStatus.Fixed;
-            break;
-          case 'wontFix':
-            threadStatus = CommentThreadStatus.WontFix;
-            break;
-          case 'closed':
-            threadStatus = CommentThreadStatus.Closed;
-            break;
-          case 'pending':
-            threadStatus = CommentThreadStatus.Pending;
-            break;
-          case 'byDesign':
-            threadStatus = CommentThreadStatus.ByDesign;
-            break;
-          case 'unknown':
-            threadStatus = CommentThreadStatus.Unknown;
-            break;
-        }
-      }
+      // Map status string to CommentThreadStatus enum; new threads default to active
+      const threadStatusMap: Record<
+        NonNullable<AddPullRequestCommentOptions['status']>,
+        CommentThreadStatus
+      > = {
+        active: CommentThreadStatus.Active,
+        fixed: CommentThreadStatus.Fixed,
+        wontFix: CommentThreadStatus.WontFix,
+        closed: CommentThreadStatus.Closed,
+        pending: CommentThreadStatus.Pending,
+        byDesign: CommentThreadStatus.ByDesign,
+        unknown: CommentThreadStatus.Unknown,
+      };
+      const threadStatus = threadStatusMap[options.status ?? 'active'];
 
       // Create thread with comment
       const thread: GitPullRequestCommentThread = {

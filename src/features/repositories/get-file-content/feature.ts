@@ -210,7 +210,13 @@ export async function getFileContent(
           }
 
           // Apply line-based pagination
-          const lines = buffer.toString('utf8').split('\n');
+          const text = buffer.toString('utf8');
+          const lines = text.split('\n');
+          // A final newline terminates the last line rather than starting a new one
+          const endsWithNewline = text.endsWith('\n');
+          if (endsWithNewline) {
+            lines.pop();
+          }
           const totalLines = lines.length;
 
           // Calculate effective start and end lines
@@ -233,14 +239,22 @@ export async function getFileContent(
           );
 
           // Apply character-based truncation to prevent token overflow
-          const { content, actualEndLine, truncationNote } = truncateContent(
+          const truncatedContent = truncateContent(
             selectedLines,
             clampedStartLine,
             clampedEndLine,
           );
 
+          const { actualEndLine, truncationNote } = truncatedContent;
+
           // Determine if content was truncated (either by line limit or character limit)
           const truncated = actualEndLine < totalLines;
+
+          // Keep the file's final newline when the slice reaches the end
+          const content =
+            endsWithNewline && !truncated
+              ? `${truncatedContent.content}\n`
+              : truncatedContent.content;
 
           return {
             content,

@@ -1,5 +1,6 @@
 import { WebApi } from 'azure-devops-node-api';
 import { addPullRequestComment } from './feature';
+import { AddPullRequestCommentSchema } from '../schemas';
 import {
   Comment,
   CommentThreadStatus,
@@ -456,5 +457,42 @@ describe('addPullRequestComment', () => {
       123,
       'test-project',
     );
+  });
+  describe('default thread status', () => {
+    test('accepts a new thread without a status', () => {
+      const parsed = AddPullRequestCommentSchema.safeParse({
+        pullRequestId: 1,
+        content: 'hello',
+        filePath: '/README.md',
+        lineNumber: 3,
+      });
+
+      expect(parsed.success).toBe(true);
+    });
+
+    test('creates a new thread as active when no status is given', async () => {
+      const createThread = jest.fn().mockResolvedValue({
+        id: 1,
+        status: CommentThreadStatus.Active,
+        comments: [{ id: 1, content: 'hello', commentType: CommentType.Text }],
+      });
+      const connection: any = {
+        getGitApi: jest.fn().mockResolvedValue({ createThread }),
+      };
+
+      await addPullRequestComment(connection, 'p', 'r', 5, {
+        projectId: 'p',
+        repositoryId: 'r',
+        pullRequestId: 5,
+        content: 'hello',
+      });
+
+      expect(createThread).toHaveBeenCalledWith(
+        expect.objectContaining({ status: CommentThreadStatus.Active }),
+        'r',
+        5,
+        'p',
+      );
+    });
   });
 });

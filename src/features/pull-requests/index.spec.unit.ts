@@ -224,7 +224,7 @@ describe('Pull Requests Request Handlers', () => {
             repositoryId: 'test-repo',
             pullRequestId: 123,
             content: 'New comment',
-            status: 'active', // Status is required when creating a new thread
+            status: 'active',
           },
         },
         method: 'tools/call',

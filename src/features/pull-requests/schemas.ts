@@ -127,71 +127,60 @@ export const GetPullRequestCommentsSchema = z.object({
 /**
  * Schema for adding a comment to a pull request
  */
-export const AddPullRequestCommentSchema = z
-  .object({
-    projectId: z
-      .string()
-      .optional()
-      .describe(`The ID or name of the project (Default: ${defaultProject})`),
-    organizationId: z
-      .string()
-      .optional()
-      .describe(`The ID or name of the organization (Default: ${defaultOrg})`),
-    repositoryId: z
-      .string()
-      .optional()
-      .describe(
-        'The ID or name of the repository (optional; derived from pullRequestId when omitted)',
-      ),
-    pullRequestId: z.number().describe('The ID of the pull request'),
-    content: z.string().describe('The content of the comment in markdown'),
-    threadId: z
-      .number()
-      .optional()
-      .describe('The ID of the thread to add the comment to'),
-    parentCommentId: z
-      .number()
-      .optional()
-      .describe(
-        'ID of the parent comment when replying to an existing comment',
-      ),
-    filePath: z
-      .string()
-      .optional()
-      .describe('The path of the file to comment on (for new thread on file)'),
-    lineNumber: z
-      .number()
-      .optional()
-      .describe('The line number to comment on (for new thread on file)'),
-    endLineNumber: z
-      .number()
-      .optional()
-      .describe(
-        'Last line (inclusive) for a thread spanning several lines; defaults to lineNumber. A suggestion block replaces the whole range.',
-      ),
-    status: z
-      .enum([
-        'active',
-        'fixed',
-        'wontFix',
-        'closed',
-        'pending',
-        'byDesign',
-        'unknown',
-      ])
-      .optional()
-      .describe('The status to set for a new thread'),
-  })
-  .superRefine((data, ctx) => {
-    // If we're creating a new thread (no threadId), status is required
-    if (!data.threadId && !data.status) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Status is required when creating a new thread',
-        path: ['status'],
-      });
-    }
-  });
+export const AddPullRequestCommentSchema = z.object({
+  projectId: z
+    .string()
+    .optional()
+    .describe(`The ID or name of the project (Default: ${defaultProject})`),
+  organizationId: z
+    .string()
+    .optional()
+    .describe(`The ID or name of the organization (Default: ${defaultOrg})`),
+  repositoryId: z
+    .string()
+    .optional()
+    .describe(
+      'The ID or name of the repository (optional; derived from pullRequestId when omitted)',
+    ),
+  pullRequestId: z.number().describe('The ID of the pull request'),
+  content: z.string().describe('The content of the comment in markdown'),
+  threadId: z
+    .number()
+    .optional()
+    .describe('The ID of the thread to add the comment to'),
+  parentCommentId: z
+    .number()
+    .optional()
+    .describe('ID of the parent comment when replying to an existing comment'),
+  filePath: z
+    .string()
+    .optional()
+    .describe('The path of the file to comment on (for new thread on file)'),
+  lineNumber: z
+    .number()
+    .optional()
+    .describe('The line number to comment on (for new thread on file)'),
+  endLineNumber: z
+    .number()
+    .optional()
+    .describe(
+      'Last line (inclusive) for a thread spanning several lines; defaults to lineNumber. A suggestion block replaces the whole range.',
+    ),
+  status: z
+    .enum([
+      'active',
+      'fixed',
+      'wontFix',
+      'closed',
+      'pending',
+      'byDesign',
+      'unknown',
+    ])
+    .optional()
+    .describe(
+      'The status to set for a new thread (Default: "active"). Ignored when replying to an existing thread.',
+    ),
+});
 
 /**
  * Schema for updating a pull request
