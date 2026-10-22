@@ -100,7 +100,7 @@ export const TOOL_TO_FEATURE: Record<string, FeatureName> = Object.entries(
 export const ToolsConfigSchema = z
   .object({
     features: z
-      .record(
+      .partialRecord(
         z.enum(FEATURE_NAMES as unknown as [string, ...string[]]),
         z.boolean(),
       )
@@ -113,7 +113,9 @@ export const ToolsConfigSchema = z
       .optional()
       .default({ disabled: [] }),
   })
-  .default({});
+  // prefault: zod 4's default() skips parsing, so the nested defaults
+  // above would not be applied to an empty config.
+  .prefault({});
 
 export type ToolsConfig = z.infer<typeof ToolsConfigSchema>;
 
