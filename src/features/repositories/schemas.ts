@@ -137,9 +137,9 @@ export const GetAllRepositoriesTreeSchema = z.object({
     .min(0)
     .max(10)
     .optional()
-    .default(0)
+    .default(3)
     .describe(
-      'Maximum depth to traverse within each repository (0 = unlimited)',
+      'Maximum depth to traverse within each repository (0 = unlimited, default: 3). Use lower values for broad overview, higher values or 0 for detailed exploration.',
     ),
   pattern: z
     .string()
@@ -173,8 +173,10 @@ export const GetRepositoryTreeSchema = z.object({
     .min(0)
     .max(10)
     .optional()
-    .default(0)
-    .describe('Maximum depth to traverse (0 = unlimited)'),
+    .default(3)
+    .describe(
+      'Maximum depth to traverse (0 = unlimited, default: 3). Use the path parameter to start deeper in the tree.',
+    ),
 });
 
 /**

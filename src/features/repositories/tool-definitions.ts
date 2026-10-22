@@ -40,13 +40,13 @@ export const repositoriesTools: ToolDefinition[] = [
   {
     name: 'get_all_repositories_tree',
     description:
-      'Displays a hierarchical tree view of files and directories across multiple Azure DevOps repositories within a project, based on their default branches',
+      'Displays a hierarchical tree view of files and directories across multiple Azure DevOps repositories within a project, based on their default branches. Returns at most 10 repositories and 500 items per repository (default depth: 3). Use repositoryPattern, depth, and pattern parameters to narrow results.',
     inputSchema: zodToJsonSchema(GetAllRepositoriesTreeSchema),
   },
   {
     name: 'get_repository_tree',
     description:
-      'Displays a hierarchical tree view of files and directories within a single repository starting from an optional path',
+      'Displays a hierarchical tree view of files and directories within a single repository starting from an optional path. Returns at most 500 items (default depth: 3). Use path to start from a subdirectory and depth to control levels (0 = unlimited).',
     inputSchema: zodToJsonSchema(GetRepositoryTreeSchema),
   },
   {

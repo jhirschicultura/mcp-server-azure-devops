@@ -141,6 +141,7 @@ export const handleRepositoriesRequest: RequestHandler = async (
       };
     }
     case 'get_all_repositories_tree': {
+      const MAX_TOTAL_OUTPUT_CHARS = 50000;
       const args = GetAllRepositoriesTreeSchema.parse(request.params.arguments);
       const result = await getAllRepositoriesTree(connection, {
         ...args,
@@ -148,16 +149,35 @@ export const handleRepositoriesRequest: RequestHandler = async (
         organizationId: args.organizationId ?? defaultOrg,
       });
 
-      // Format the output as plain text tree representation
+      // Format the output as plain text tree representation with character budget
       let formattedOutput = '';
+      let reposIncluded = 0;
       for (const repo of result.repositories) {
-        formattedOutput += formatRepositoryTree(
-          repo.name,
-          repo.tree,
-          repo.stats,
-          repo.error,
-        );
-        formattedOutput += '\n'; // Add blank line between repositories
+        const repoOutput =
+          formatRepositoryTree(
+            repo.name,
+            repo.tree,
+            repo.stats,
+            repo.error,
+            repo.truncationNote,
+          ) + '\n';
+
+        if (
+          formattedOutput.length + repoOutput.length > MAX_TOTAL_OUTPUT_CHARS &&
+          reposIncluded > 0
+        ) {
+          const remaining = result.repositories.length - reposIncluded;
+          formattedOutput += `\n[Output truncated: ${remaining} remaining repository tree(s) omitted (exceeded ${MAX_TOTAL_OUTPUT_CHARS} character limit). Use repositoryPattern to select specific repositories.]\n`;
+          break;
+        }
+
+        formattedOutput += repoOutput;
+        reposIncluded++;
+      }
+
+      // Append repo-count truncation note if present
+      if (result.truncationNote) {
+        formattedOutput += `\n[${result.truncationNote}]\n`;
       }
 
       return {
@@ -165,18 +185,37 @@ export const handleRepositoriesRequest: RequestHandler = async (
       };
     }
     case 'get_repository_tree': {
+      const MAX_TOTAL_OUTPUT_CHARS = 50000;
       const args = GetRepositoryTreeSchema.parse(request.params.arguments);
       const result = await getRepositoryTree(connection, {
         ...args,
         projectId: args.projectId ?? defaultProject,
       });
+
+      let output = JSON.stringify(result, null, 2);
+      if (output.length > MAX_TOTAL_OUTPUT_CHARS) {
+        // Try compact JSON first
+        output = JSON.stringify(result);
+        if (output.length > MAX_TOTAL_OUTPUT_CHARS) {
+          // Slice tree proportionally to fit budget
+          const ratio = MAX_TOTAL_OUTPUT_CHARS / output.length;
+          const maxItems = Math.max(
+            1,
+            Math.floor(result.tree.length * ratio * 0.8),
+          );
+          const slicedResult = {
+            ...result,
+            tree: result.tree.slice(0, maxItems),
+            truncated: true,
+            totalItems: result.totalItems || result.tree.length,
+            truncationNote: `Output truncated to fit within ${MAX_TOTAL_OUTPUT_CHARS} character limit. Use the "path" parameter to explore specific subdirectories, or set a lower "depth".`,
+          };
+          output = JSON.stringify(slicedResult);
+        }
+      }
+
       return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
+        content: [{ type: 'text', text: output }],
       };
     }
     case 'create_branch': {

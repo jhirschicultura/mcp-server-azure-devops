@@ -258,6 +258,7 @@ describe('Repositories Request Handlers', () => {
         expect.any(Array),
         expect.any(Object),
         undefined,
+        undefined,
       );
     });
 
