@@ -23,10 +23,10 @@ import { UserProfile } from '../types';
  */
 export async function getMe(connection: WebApi): Promise<UserProfile> {
   try {
+    // The profile endpoint lives on vssps.dev.azure.com and is cloud-only;
+    // Azure DevOps Server exposes the authenticated identity via connectionData.
     if (!isAzureDevOpsServicesUrl(connection.serverUrl)) {
-      throw new AzureDevOpsValidationError(
-        'The get_me profile endpoint is only available for Azure DevOps Services',
-      );
+      return await getMeFromConnectionData(connection);
     }
 
     const baseUrls = resolveAzureDevOpsBaseUrls(connection.serverUrl);
@@ -82,6 +82,36 @@ export async function getMe(connection: WebApi): Promise<UserProfile> {
       `Failed to get user information: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+/**
+ * Get the authenticated user on Azure DevOps Server (on-premises)
+ *
+ * Uses the location service's connectionData, which goes through the
+ * connection's own auth handler (PAT for on-prem servers).
+ *
+ * @param connection The Azure DevOps WebApi connection
+ * @returns User profile information
+ */
+async function getMeFromConnectionData(
+  connection: WebApi,
+): Promise<UserProfile> {
+  const locationsApi = await connection.getLocationsApi();
+  const connectionData = await locationsApi.getConnectionData();
+  const user = connectionData?.authenticatedUser;
+
+  if (!user?.id) {
+    throw new AzureDevOpsAuthenticationError(
+      'Azure DevOps Server did not return an authenticated user',
+    );
+  }
+
+  const properties = user.properties ?? {};
+  return {
+    id: user.id,
+    displayName: user.providerDisplayName || user.customDisplayName || '',
+    email: properties.Mail?.$value || properties.Account?.$value || '',
+  };
 }
 
 /**
